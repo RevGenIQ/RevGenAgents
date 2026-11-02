@@ -2,7 +2,7 @@ import { after, NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { getPendingReview, isLangGraphEngine, resumeProspectingRun } from "@/lib/agents";
 import { driveRun } from "@/lib/agents/continuation";
-import { reviewResumeSchema } from "@/lib/agents/types";
+import { AWAITING_REVIEW_PREFIX, reviewResumeSchema } from "@/lib/agents/types";
 import { getSessionFromRequest, verifyWorkspaceAccess, type UserSession } from "@/lib/security/auth";
 import { verifyCsrfAndOrigin } from "@/lib/security/cors";
 import { rateLimit } from "@/lib/security/rateLimit";
@@ -12,8 +12,6 @@ import { apiError, apiSuccess } from "@/lib/api/response";
 
 // The resumed graph (publishToClient, finalize) runs inside after().
 export const maxDuration = 300;
-
-const AWAITING_REVIEW_PREFIX = "Awaiting Humagent review";
 
 type ServerSupabase = ReturnType<typeof createServerClient>;
 

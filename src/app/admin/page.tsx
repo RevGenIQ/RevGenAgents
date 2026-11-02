@@ -23,10 +23,12 @@ import {
   Clock,
   Hash,
   Edit3,
+  ClipboardCheck,
 } from "lucide-react";
 import { RevGenLogo } from "@/components/ui/RevGenLogo";
 import { useAuth } from "@/context/AuthContext";
 import { WorkspaceChannelHub } from "@/components/modules/WorkspaceChannelHub";
+import { RunReviewQueue } from "@/components/modules/RunReviewQueue";
 import {
   ClientCompanyWorkspace,
   ClientIcpSubmission,
@@ -52,6 +54,7 @@ export default function AdminMiddlewarePage() {
     | "workspace_channels"
     | "agentic_prospecting"
     | "all_20_columns"
+    | "run_review"
   >("access_and_credentials");
 
   const [workspaces, setWorkspaces] = useState<ClientCompanyWorkspace[]>([]);
@@ -622,7 +625,22 @@ export default function AdminMiddlewarePage() {
             <Database className="w-4 h-4" />
             <span>5. Data Enrichment Ledger (All 20 Columns)</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("run_review")}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              activeTab === "run_review"
+                ? "bg-indigo-600 text-white shadow-sm"
+                : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+            }`}
+          >
+            <ClipboardCheck className="w-4 h-4" />
+            <span>6. Agent Run Review</span>
+          </button>
         </div>
+
+        {activeTab === "run_review" && <RunReviewQueue />}
 
         {/* ════════════════ TAB 1: CLIENT ACCESS REQUESTS, HUMAGENTS & ALLOCATIONS ════════════════ */}
         {activeTab === "access_and_credentials" && (

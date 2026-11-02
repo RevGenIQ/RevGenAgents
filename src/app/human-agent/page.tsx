@@ -13,10 +13,12 @@ import {
   Clock,
   Hash,
   Users,
+  ClipboardCheck,
 } from "lucide-react";
 import { RevGenLogo } from "@/components/ui/RevGenLogo";
 import { useAuth } from "@/context/AuthContext";
 import { WorkspaceChannelHub } from "@/components/modules/WorkspaceChannelHub";
+import { RunReviewQueue } from "@/components/modules/RunReviewQueue";
 import {
   ProspectAccountRecord,
   EnrichedContactPerson,
@@ -31,7 +33,7 @@ export default function HumanAgentPage() {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
 
   const [activeTab, setActiveTab] = useState<
-    "qa_workbench" | "assigned_channels"
+    "qa_workbench" | "assigned_channels" | "run_review"
   >("qa_workbench");
   const [accounts, setAccounts] = useState<ProspectAccountRecord[]>([]);
   const [workspaces, setWorkspaces] = useState<ClientCompanyWorkspace[]>([]);
@@ -338,9 +340,24 @@ export default function HumanAgentPage() {
               2. Assigned Workspace Channels ({workspaces.length} Allocated)
             </span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("run_review")}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              activeTab === "run_review"
+                ? "bg-emerald-600 text-white shadow-sm"
+                : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+            }`}
+          >
+            <ClipboardCheck className="w-4 h-4" />
+            <span>3. Agent Run Review</span>
+          </button>
         </div>
 
-        {activeTab === "assigned_channels" ? (
+        {activeTab === "run_review" ? (
+          <RunReviewQueue />
+        ) : activeTab === "assigned_channels" ? (
           <div className="space-y-4">
             <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-2xs">
               <span className="text-[10px] font-mono uppercase text-emerald-700 font-bold">

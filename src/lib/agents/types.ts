@@ -137,6 +137,9 @@ export const reviewResumeSchema = z.object({
 export type ReviewDecision = z.infer<typeof reviewDecisionSchema>;
 export type ReviewResume = z.infer<typeof reviewResumeSchema>;
 
+/** `research_runs.current_step` prefix while a run is paused at humagentReview (the status column has no "awaiting" value). */
+export const AWAITING_REVIEW_PREFIX = "Awaiting Humagent review";
+
 /** Payload passed to interrupt() and returned to the review UI. */
 export interface ReviewRequest {
   kind: "humagent_review";

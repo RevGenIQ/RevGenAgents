@@ -6,7 +6,7 @@
 import { interrupt } from "@langchain/langgraph";
 import type { AgentDeps } from "../deps";
 import type { ProspectingStateType, ProspectingUpdate } from "../state";
-import { reviewResumeSchema, type ReviewCard, type ReviewRequest } from "../types";
+import { reviewResumeSchema, type ReviewCard, type ReviewRequest, AWAITING_REVIEW_PREFIX } from "../types";
 import { budgetExceededReason, errorMessage, reportProgress, stopRequested, summariseUsage, totalCost } from "./guards";
 
 export function reviewCards(state: ProspectingStateType): ReviewCard[] {
@@ -53,7 +53,7 @@ export function createHumagentReview(deps: AgentDeps) {
   return async function humagentReview(state: ProspectingStateType): Promise<ProspectingUpdate> {
     const cards = reviewCards(state);
     // This node re-runs from the top on resume, so everything before interrupt() is idempotent.
-    await reportProgress(deps, state.runId, `Awaiting Humagent review of ${cards.length} account cards...`, 90);
+    await reportProgress(deps, state.runId, `${AWAITING_REVIEW_PREFIX} of ${cards.length} account cards...`, 90);
 
     const request: ReviewRequest = { kind: "humagent_review", runId: state.runId, workspaceId: state.workspaceId, cards };
     const resume = interrupt<ReviewRequest, unknown>(request);
