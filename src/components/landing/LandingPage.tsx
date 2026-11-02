@@ -5,10 +5,10 @@ import Link from "next/link";
 import { plusJakarta } from "@/app/fonts";
 import { RevGenLogo } from "@/components/ui/RevGenLogo";
 import { useAuth } from "@/context/AuthContext";
+import { SignalGraphHero } from "@/components/landing/hero/SignalGraphHero";
 import {
   ArrowRight,
   CheckCircle2,
-  Play,
   Menu,
   X,
   Radar,
@@ -124,45 +124,6 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
         {/* BACKGROUND GRAPHICS: Radial navy/indigo glow + glowing purple sphere + thin gradient arc lines */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(91,75,255,0.22),rgba(11,0,51,0.95)_60%,#07001E_100%)]" />
-          <div className="absolute top-24 -right-24 sm:right-[-5%] w-[420px] sm:w-[620px] h-[420px] sm:h-[620px] rounded-full bg-gradient-to-br from-[#5B4BFF]/30 via-[#8B5CF6]/20 to-[#EC4899]/15 blur-[120px] opacity-75 motion-safe:animate-pulse" />
-          <div className="absolute top-[45%] -left-32 w-[380px] h-[380px] rounded-full bg-indigo-900/25 blur-[100px] opacity-50" />
-
-          <svg
-            className="absolute top-10 right-0 w-[350px] sm:w-[650px] h-[550px] opacity-50 overflow-visible"
-            viewBox="0 0 650 550"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <defs>
-              <linearGradient id="arcLineGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#EC4899" stopOpacity="0.85" />
-                <stop offset="60%" stopColor="#F97316" stopOpacity="0.5" />
-                <stop offset="100%" stopColor="#8B5CF6" stopOpacity="0.1" />
-              </linearGradient>
-              <linearGradient id="arcLineGrad2" x1="100%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.8" />
-                <stop offset="50%" stopColor="#EC4899" stopOpacity="0.6" />
-                <stop offset="100%" stopColor="#F97316" stopOpacity="0.2" />
-              </linearGradient>
-            </defs>
-            <path
-              d="M 50 10 C 220 120, 460 180, 640 460"
-              stroke="url(#arcLineGrad1)"
-              strokeWidth="1.5"
-              strokeDasharray="6 4"
-            />
-            <path
-              d="M 0 140 C 280 230, 490 320, 620 540"
-              stroke="url(#arcLineGrad2)"
-              strokeWidth="1.5"
-            />
-            <path
-              d="M 180 30 C 370 170, 520 290, 650 380"
-              stroke="url(#arcLineGrad1)"
-              strokeWidth="1"
-              strokeOpacity="0.5"
-            />
-          </svg>
         </div>
 
         {/* NAVBAR */}
@@ -316,39 +277,64 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
         )}
 
         {/* ════════════════ SECTION 1: HERO (CENTERED) ════════════════ */}
-        <section className="relative z-10 pt-32 sm:pt-40 pb-16 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto w-full text-center flex flex-col items-center">
-          <div className="inline-flex items-center px-4 py-1.5 rounded-full bg-white/[0.06] border border-white/15 text-[11px] sm:text-xs font-mono tracking-wider text-indigo-300 font-semibold mb-7 shadow-inner">
-            <span>RevGen AI · Intelligent B2B Prospecting</span>
-          </div>
+        <section className="relative z-10 pt-28 sm:pt-32 pb-10 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-center">
+          <div className="lg:col-span-6 text-left">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.06] border border-white/15 text-[11px] sm:text-xs font-mono tracking-wider text-indigo-200 font-semibold mb-6">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#F5B544]" aria-hidden="true" />
+              <span>RevGen AI · Intelligent B2B Prospecting</span>
+            </div>
 
-          <h1
-            className="text-4xl sm:text-6xl lg:text-[72px] font-extrabold tracking-tight leading-[1.08] max-w-4xl text-center"
-            style={{ color: "#ffffff" }}
-          >
-            Finding the right accounts takes too long.
-            <span className="block mt-2" style={{ color: "#ffffff" }}>
-              Now it doesn&apos;t have to.
-            </span>
-          </h1>
-
-          <div className="my-9 sm:my-11">
-            <Link
-              href="/login"
-              aria-label="Sign in to RevGen AI"
-              className="group relative flex items-center justify-center w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-white text-[#5B4BFF] shadow-[0_0_50px_rgba(91,75,255,0.45)] hover:shadow-[0_0_75px_rgba(91,75,255,0.7)] hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer"
+            <h1
+              className="text-4xl sm:text-5xl lg:text-[64px] font-extrabold tracking-tight leading-[1.06] max-w-3xl text-balance"
+              style={{ color: "#ffffff" }}
             >
-              <span className="absolute -inset-2.5 rounded-full border border-white/30 motion-safe:animate-ping opacity-25" />
-              <Play className="w-8 h-8 sm:w-10 sm:h-10 fill-current translate-x-0.5 group-hover:scale-110 transition-transform" />
-            </Link>
+              Finding the right accounts takes too long.
+              <span className="block mt-2 text-[#C7CCFF]">
+                Now it doesn&apos;t have to.
+              </span>
+            </h1>
+
+            <p
+              className="mt-6 text-base lg:text-lg max-w-xl leading-relaxed"
+              style={{ color: "rgba(255, 255, 255, 0.75)" }}
+            >
+              AI agents find accounts, extract buying signals, map decision makers,
+              verify emails and write outreach, with human approval.
+            </p>
+
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              {isAuthenticated ? (
+                <button
+                  type="button"
+                  onClick={onEnterApp}
+                  className="inline-flex items-center gap-2 bg-[#5B4BFF] hover:bg-[#4F40E5] text-white text-sm px-6 py-3 rounded-xl font-semibold shadow-[0_8px_24px_rgba(91,75,255,0.45)] transition-all hover:-translate-y-0.5"
+                >
+                  Open Portal
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              ) : (
+                <>
+                  <Link
+                    href="/signup"
+                    className="inline-flex items-center gap-2 bg-[#5B4BFF] hover:bg-[#4F40E5] text-white text-sm px-6 py-3 rounded-xl font-semibold shadow-[0_8px_24px_rgba(91,75,255,0.45)] transition-all hover:-translate-y-0.5"
+                  >
+                    Request Access
+                    <ArrowRight className="w-4 h-4" />
+                  </Link>
+                  <Link
+                    href="/login"
+                    className="inline-flex items-center px-6 py-3 rounded-xl border border-white/20 text-sm font-semibold text-white hover:bg-white/[0.06] transition-colors"
+                  >
+                    Sign in
+                  </Link>
+                </>
+              )}
+            </div>
           </div>
 
-          <p
-            className="text-sm sm:text-base lg:text-lg max-w-[800px] leading-relaxed font-normal"
-            style={{ color: "rgba(255, 255, 255, 0.75)" }}
-          >
-            AI agents find accounts, extract buying signals, map decision makers,
-            verify emails and write outreach, with human approval.
-          </p>
+          <div className="lg:col-span-6 relative h-[340px] sm:h-[440px] lg:h-[540px] -mx-4 sm:mx-0">
+            <SignalGraphHero />
+          </div>
         </section>
 
         {/* ════════════════ SECTION 2: DIRECTLY BELOW HERO (TWO-COLUMN PIPELINE) ════════════════ */}
