@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { rateLimit } from "@/lib/security/rateLimit";
 import { getSessionFromRequest } from "@/lib/security/auth";
 import { apiSuccess } from "@/lib/api/response";
+import { resolveProviders } from "@/lib/llm/providers";
 
 export async function GET(request: NextRequest) {
   const rl = rateLimit(request, { max: 60, windowMs: 60 * 1000, prefix: "integrations_get" });
@@ -10,30 +11,24 @@ export async function GET(request: NextRequest) {
   // Session optional, but verifies headers
   const session = getSessionFromRequest(request);
 
-  const geminiKey = !!process.env.GEMINI_API_KEY;
-  const openaiKey = !!process.env.OPENAI_API_KEY;
-  const anthropicKey = !!process.env.ANTHROPIC_API_KEY;
+  const llmChain = resolveProviders().providers.map((p) => p.id);
   const tavilyKey = !!process.env.TAVILY_API_KEY;
   const serperKey = !!process.env.SERPER_API_KEY;
   const apolloKey = !!process.env.APOLLO_API_KEY;
   const zeroBounceKey = !!process.env.ZEROBOUNCE_API_KEY;
 
-  const llmConnected = geminiKey || openaiKey || anthropicKey;
+  const llmConnected = llmChain.length > 0;
   const searchConnected = tavilyKey || serperKey;
 
   const integrations = [
     {
       id: "int-llm",
       category: "LLM & Reasoning Engine",
-      name: geminiKey
-        ? "Google Gemini 2.0 Flash"
-        : openaiKey
-        ? "OpenAI GPT-4o-mini"
-        : "Anthropic Claude 3.5 Sonnet",
+      name: llmConnected ? `LLM fallback chain: ${llmChain.join(" → ")}` : "LLM fallback chain",
       isConnected: llmConnected,
       status: llmConnected ? "healthy" : "demo_mode",
       lastChecked: new Date().toISOString(),
-      missingEnvKey: llmConnected ? null : "GEMINI_API_KEY or OPENAI_API_KEY",
+      missingEnvKey: llmConnected ? null : "OPENAI_API_KEY, GEMINI_API_KEY, ANTHROPIC_API_KEY, GROQ_API_KEY or LLM_<NAME>_BASE_URL",
       fallbackMode: "Deterministic LLM Reasoner (simulates deep ICP structuring and personalized openers)",
       usageThisMonth: 142,
       estimatedCostUsd: 0.28,

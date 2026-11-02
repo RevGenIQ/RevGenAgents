@@ -1,9 +1,10 @@
 import { Command, MemorySaver } from "@langchain/langgraph";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { loadAgentConfig, MIN_CONCURRENCY } from "../config";
 import { buildAccountPipeline } from "../graphs/accountPipeline";
 import { buildProspectingGraph } from "../graphs/prospecting";
 import { fallbackPlan } from "../nodes/context";
-import { validateSignals } from "../nodes/account/signals";
+import { dateNearQuote, tallyRejections, validateSignals } from "../nodes/account/signals";
 import { EMPTY_ICP } from "../state";
 import type { ReviewRequest } from "../types";
 import { createDeps, createFakeRepo, createFakeTools, HITS, NOW, RUN_ID, WORKSPACE_ID } from "./fakes";
@@ -178,6 +179,24 @@ describe("persistAccount idempotency", () => {
   });
 });
 
+describe("fan-out concurrency", () => {
+  it("researches every candidate at the lowest allowed concurrency", async () => {
+    const { graph, tools } = setup({ dncDomains: [] });
+    await graph.invoke({ runId: RUN_ID }, { ...thread(), maxConcurrency: MIN_CONCURRENCY });
+
+    expect(tools.llmMock.mock.calls.filter(([task]) => task === "extractSignals")).toHaveLength(3);
+  });
+
+  it("never lets AGENT_MAX_CONCURRENCY drop below the minimum", () => {
+    vi.stubEnv("AGENT_MAX_CONCURRENCY", "1");
+    try {
+      expect(loadAgentConfig().maxConcurrency).toBe(MIN_CONCURRENCY);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});
+
 describe("evidence and planning rules", () => {
   it("drops signals without a retrieved source, a matching quote or a date", () => {
     const evidence = new Map([[HITS.acme.url, { ...HITS.acme }]]);
@@ -189,6 +208,29 @@ describe("evidence and planning rules", () => {
     expect(validateSignals([{ ...base, quote: "doubled revenue to 4 billion last quarter" }], evidence, 365, NOW)).toHaveLength(0);
     expect(validateSignals([{ ...base, sourceDate: null }], undated, 365, NOW)).toHaveLength(0);
     expect(validateSignals([{ ...base, sourceDate: "2024-01-01" }], evidence, 365, NOW)).toHaveLength(0);
+
+    const proposed = [
+      base,
+      { ...base, sourceUrl: "https://invented.example.com/x" },
+      { ...base, quote: "doubled revenue to 4 billion last quarter" },
+      { ...base, sourceDate: "2024-01-01" },
+    ];
+    expect(tallyRejections(proposed, evidence, 365, NOW)).toEqual({ unknown_source: 1, quote_not_on_page: 1, outside_window: 1 });
+  });
+
+  it("dates an undated signal from a full date written next to its quote", () => {
+    const quote = "will open a new robotics plant in Munich";
+    const page = `Acme Robotics news. Posted on 14 September 2026. The company ${quote} next year. Founded in 2001.`;
+    const undated = new Map([[HITS.acme.url, { ...HITS.acme, content: page, publishedDate: null }]]);
+    const signal = { signalType: "expansion", title: "Plant", quote, sourceUrl: HITS.acme.url, sourceDate: null };
+
+    expect(dateNearQuote(page, quote)?.toISOString().slice(0, 10)).toBe("2026-09-14");
+    expect(dateNearQuote("Opened March 3, 2026: " + quote, quote)?.toISOString().slice(0, 10)).toBe("2026-03-03");
+    expect(dateNearQuote(`Founded in 2001. The firm ${quote}.`, quote)).toBeNull();
+    expect(dateNearQuote("On 31 February 2026 it said " + quote, quote)).toBeNull();
+    expect(dateNearQuote(`Acme operates in 12 markets, 2025 revenue grew. It ${quote}.`, quote)).toBeNull();
+    expect(dateNearQuote(`Older item, 2 March 2026.\n\nAcme ${quote}.`, quote)).toBeNull();
+    expect(validateSignals([signal], undated, 365, NOW)).toEqual([expect.objectContaining({ sourceDate: "2026-09-14" })]);
   });
 
   it("builds different, ICP-specific queries for different workspaces", () => {

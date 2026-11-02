@@ -18,7 +18,7 @@ npm run import:hdl / import:extrieve     # load client .xlsx datasets from data/
 npm run unimport:hdl / unimport:extrieve # remove those imports
 ```
 
-There is no test suite yet. `npm run build` stops with `SecurityFatalError` if the installed `next` has a known advisory: upgrade `next` and `eslint-config-next` together (pinned exact versions).
+`npm test` runs vitest (`src/**/*.test.ts`); one file: `npx vitest run src/lib/llm/__tests__/router.test.ts`. `npm run build` stops with `SecurityFatalError` if the installed `next` has a known advisory: upgrade `next` and `eslint-config-next` together (pinned exact versions).
 
 ## Git
 
@@ -48,4 +48,4 @@ Migrations live in `supabase/migrations/` (`_old_migrations/` is a stale copy). 
 Tailwind v4 via `@tailwindcss/postcss`. `dark:` utilities follow the `.dark` class set on `<html>` by `ThemeToggle` and the inline script in `layout.tsx` (`@custom-variant dark` in `globals.css`).
 
 ## Environment
-Copy `.env.example` to `.env.local`. Required: `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET`, `ADMIN_SECRET_KEY`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`. Optional provider keys enable each pipeline stage: `BRAVE_API_KEY`, `TAVILY_API_KEY`, `SERPER_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, `APOLLO_API_KEY`, `ZEROBOUNCE_API_KEY`. `ALLOWED_ORIGINS` adds extra origins to the CSRF allow-list. `data/` (client spreadsheets) and `.env*` are gitignored.
+Copy `.env.example` to `.env.local`. Required: `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET`, `ADMIN_SECRET_KEY`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`. Optional provider keys enable each pipeline stage: `BRAVE_API_KEY`, `TAVILY_API_KEY`, `SERPER_API_KEY`, `APOLLO_API_KEY`, `ZEROBOUNCE_API_KEY`. LLM calls go through `src/lib/llm/` (`llmText` / `llmJson`): every provider with a key (OpenAI, Gemini, Anthropic, Groq, xAI, DeepSeek, Mistral, OpenRouter, Together, or any OpenAI-compatible API via `LLM_<NAME>_BASE_URL/_API_KEY/_MODEL`) joins a fallback chain ordered by `LLM_PROVIDER_ORDER`; never call a provider API directly. `ALLOWED_ORIGINS` adds extra origins to the CSRF allow-list. `data/` (client spreadsheets) and `.env*` are gitignored.

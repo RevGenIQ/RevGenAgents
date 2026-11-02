@@ -2,7 +2,9 @@
  * extractSignals (Analyst) and scoreFit.
  * A signal is kept only if it has a source URL that was actually retrieved, a
  * quote that appears in that page's text, and a date inside the ICP's signal
- * window (P0-3). Anything else is dropped, never stored.
+ * window (P0-3). The date comes from the model, the page's published date, or
+ * a full date written on the page next to the quote. Anything else is dropped,
+ * never stored.
  */
 
 import * as z from "zod";
@@ -30,6 +32,8 @@ const signalSchema = z.object({
     .max(12),
 });
 
+type RawSignal = z.infer<typeof signalSchema>["signals"][number];
+
 const scoreSchema = z.object({
   fitScore: z.number().min(0).max(100),
   intentScore: z.number().min(0).max(100),
@@ -45,28 +49,92 @@ export function normaliseText(value: string): string {
     .trim();
 }
 
+const DATE_WINDOW_CHARS = 400;
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+const MONTH = String.raw`(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept|sep|oct|nov|dec)\.?`;
+const DATE_PATTERNS: Array<{ re: RegExp; ymd: (m: RegExpExecArray) => [string, string, string] }> = [
+  { re: /\b(\d{4})-(\d{2})-(\d{2})\b/g, ymd: (m) => [m[1], m[2], m[3]] },
+  { re: new RegExp(String.raw`\b(\d{1,2})(?:st|nd|rd|th)?\s+${MONTH},?\s+(\d{4})\b`, "gi"), ymd: (m) => [m[3], m[2], m[1]] },
+  { re: new RegExp(String.raw`\b${MONTH}\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})\b`, "gi"), ymd: (m) => [m[3], m[1], m[2]] },
+];
+
+function toUtcDate(year: string, month: string, day: string): Date | null {
+  const m = /^\d+$/.test(month) ? Number(month) - 1 : MONTHS.indexOf(month.slice(0, 3).toLowerCase());
+  const d = new Date(Date.UTC(Number(year), m, Number(day)));
+  return m < 0 || d.getUTCDate() !== Number(day) ? null : d;
+}
+
+/**
+ * A full date (day, month and year) written in the same paragraph as the quote
+ * and within a few hundred characters of it, the closest one first. Returns
+ * null when the quote cannot be located verbatim or no full date is near it.
+ */
+export function dateNearQuote(content: string, quote: string): Date | null {
+  const lower = content.toLowerCase();
+  const at = lower.indexOf(quote.trim().slice(0, 40).toLowerCase());
+  if (at < 0) return null;
+  // Stay inside the quote's paragraph so a neighbouring item's date is not borrowed.
+  const blockStart = content.lastIndexOf("\n\n", at) + 1;
+  const blockEnd = content.indexOf("\n\n", at + quote.length);
+  const start = Math.max(blockStart, at - DATE_WINDOW_CHARS);
+  const end = Math.min(blockEnd < 0 ? content.length : blockEnd, at + quote.length + DATE_WINDOW_CHARS);
+  const nearby = content.slice(start, end);
+  const found = DATE_PATTERNS.flatMap(({ re, ymd }) =>
+    [...nearby.matchAll(re)].map((m) => ({ date: toUtcDate(...ymd(m as RegExpExecArray)), distance: Math.abs(start + (m.index ?? 0) - at) }))
+  );
+  const best = found.filter((f) => f.date).sort((a, b) => a.distance - b.distance)[0];
+  return best?.date ?? null;
+}
+
+function signalDate(s: RawSignal, source: SourceSnippet): Date | null {
+  return parseDate(s.sourceDate) || parseDate(source.publishedDate) || dateNearQuote(source.content, s.quote);
+}
+
 function toIsoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+export type SignalRejection = "unknown_source" | "quote_too_short" | "quote_not_on_page" | "no_date" | "outside_window";
+
+/** Why a proposed signal fails the evidence rules, or null when it passes. */
+function rejectionReason(s: RawSignal, evidence: Map<string, SourceSnippet>, windowDays: number, now: Date): SignalRejection | null {
+  const source = evidence.get(s.sourceUrl.trim());
+  if (!source || isRejectedSource(source.url, source.title)) return "unknown_source";
+  const quote = s.quote.trim();
+  if (quote.length < MIN_QUOTE_CHARS) return "quote_too_short";
+  if (!normaliseText(`${source.title} ${source.content}`).includes(normaliseText(quote))) return "quote_not_on_page";
+  const date = signalDate(s, source);
+  if (!date) return "no_date";
+  if (!isWithinWindow(date.toISOString(), windowDays, now)) return "outside_window";
+  return null;
+}
+
+/** Counts rejections by reason, for the Analyst task log. */
+export function tallyRejections(
+  raw: RawSignal[],
+  evidence: Map<string, SourceSnippet>,
+  windowDays: number,
+  now: Date
+): Partial<Record<SignalRejection, number>> {
+  return raw.reduce<Partial<Record<SignalRejection, number>>>((acc, s) => {
+    const reason = rejectionReason(s, evidence, windowDays, now);
+    return reason ? { ...acc, [reason]: (acc[reason] ?? 0) + 1 } : acc;
+  }, {});
+}
+
 /** Applies the evidence rules; returns only signals that pass every check. */
 export function validateSignals(
-  raw: z.infer<typeof signalSchema>["signals"],
+  raw: RawSignal[],
   evidence: Map<string, SourceSnippet>,
   windowDays: number,
   now: Date
 ): EvidenceSignal[] {
   const seen = new Set<string>();
   return raw.flatMap((s) => {
-    const source = evidence.get(s.sourceUrl.trim());
-    if (!source || isRejectedSource(source.url, source.title)) return [];
+    if (rejectionReason(s, evidence, windowDays, now)) return [];
+    const source = evidence.get(s.sourceUrl.trim()) as SourceSnippet;
     const quote = s.quote.trim();
-    if (quote.length < MIN_QUOTE_CHARS) return [];
-    if (!normaliseText(`${source.title} ${source.content}`).includes(normaliseText(quote))) return [];
-
-    const date = parseDate(s.sourceDate) || parseDate(source.publishedDate);
-    if (!date || !isWithinWindow(date.toISOString(), windowDays, now)) return [];
-
+    const date = signalDate(s, source) as Date;
     const key = `${source.url}::${normaliseText(quote)}`;
     if (seen.has(key)) return [];
     seen.add(key);
@@ -144,7 +212,9 @@ export function createExtractSignals(deps: AgentDeps) {
     await finishTask(deps, taskId, llm.ok ? "completed" : "failed", {
       proposed: llm.ok ? llm.value.signals.length : 0,
       signalsKept: signals.length,
-      ...(llm.ok ? {} : { error: llm.error.code }),
+      ...(llm.ok
+        ? { rejected: tallyRejections(llm.value.signals, evidence, context.icp.signalWindowDays, deps.now()) }
+        : { error: llm.error.code, detail: llm.error.message.slice(0, 500) }),
     });
     return { signals, usage };
   };

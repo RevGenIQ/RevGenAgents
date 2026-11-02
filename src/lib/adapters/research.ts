@@ -1,11 +1,13 @@
 /**
  * Autonomous Research & Live Web Scout Adapter
  * Connects directly to live search providers (Google Serper & Tavily AI)
- * and LLMs (Google Gemini 2.0 Flash / OpenAI) to extract REAL verified accounts and corroborated buying signals.
+ * and the configured LLM fallback chain (src/lib/llm) to extract REAL verified accounts and corroborated buying signals.
  * STRICT: NEVER creates fake, mock, or query-derived company names or hallucinated signals.
  */
 
 import { Signal } from "../supabase/types";
+import { resolveProviders } from "../llm/providers";
+import { llmText } from "../llm/router";
 
 export interface ScoreBreakdown {
   matchScore: number;
@@ -87,15 +89,13 @@ export async function searchCompaniesWithSignals(
   const braveKey = process.env.BRAVE_API_KEY;
   const tavilyKey = process.env.TAVILY_API_KEY;
   const serperKey = process.env.SERPER_API_KEY;
-  const openaiKey = process.env.OPENAI_API_KEY;
-  const geminiKey = process.env.GEMINI_API_KEY;
 
   if (!braveKey && !tavilyKey && !serperKey) {
     console.warn("Live search provider (Brave / Tavily / Serper) missing: falling back to verified benchmark accounts.");
     return getBenchmarkDiscoveredCompanies(icp, targetCount, workspaceId);
   }
 
-  if (!geminiKey && !openaiKey) {
+  if (resolveProviders().providers.length === 0) {
     console.warn("Unified LLM provider missing: falling back to verified benchmark accounts.");
     return getBenchmarkDiscoveredCompanies(icp, targetCount, workspaceId);
   }
@@ -378,84 +378,16 @@ Return strict JSON array of objects.`;
 
   let responseText = "";
 
-  // Call Google Gemini Flash with fallback across active models
-  if (geminiKey) {
-    const candidateModels = [
-      "gemini-flash-lite-latest",
-      "gemini-flash-latest",
-      "gemini-2.5-flash-lite",
-      "gemini-3.5-flash",
-    ];
-
-    let lastError = "";
-    for (const model of candidateModels) {
-      try {
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
-        const gRes = await fetch(geminiUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          signal: AbortSignal.timeout(20000),
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: `${analystPrompt}\n\nReturn strict JSON format matching the schema above. Include ONLY real, verified companies extracted from search results. No hallucinated names or fake URLs.`,
-                  },
-                ],
-              },
-            ],
-            generationConfig: {
-              responseMimeType: "application/json",
-              temperature: 0.1,
-            },
-          }),
-        });
-
-        if (gRes.ok) {
-          const gData = await gRes.json();
-          responseText = gData.candidates?.[0]?.content?.parts?.[0]?.text || "";
-          if (responseText) break;
-        } else {
-          const errText = await gRes.text().catch(() => "");
-          lastError = `Model ${model} returned HTTP ${gRes.status}: ${errText.slice(0, 150)}`;
-        }
-      } catch (mErr: any) {
-        lastError = mErr.message;
-      }
-    }
-
-    if (!responseText) {
-      console.warn(
-        `Analyst Agent (Gemini API error): All models failed (${lastError}). Falling back to verified benchmark accounts.`
-      );
-      return getBenchmarkDiscoveredCompanies(icp, targetCount, workspaceId);
-    }
-  } else if (openaiKey) {
-    const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-        signal: AbortSignal.timeout(20000),
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${openaiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: analystPrompt }],
-        response_format: { type: "json_object" },
-      }),
-    });
-
-    if (!aiRes.ok) {
-      const errText = await aiRes.text();
-      throw new Error(
-        `Analyst Agent (OpenAI API error ${aiRes.status}): ${errText.slice(0, 300)}`
-      );
-    }
-
-    const aiData = await aiRes.json();
-    responseText = aiData.choices?.[0]?.message?.content || "";
+  const llm = await llmText({
+    system: "You are a B2B research analyst. Include ONLY real, verified companies extracted from the search results. No hallucinated names or fake URLs.",
+    user: `${analystPrompt}\n\nReturn strict JSON matching the schema above.`,
+    json: true,
+  });
+  if (!llm.ok) {
+    console.warn(`Analyst Agent: every LLM provider failed (${llm.message}). Falling back to verified benchmark accounts.`);
+    return getBenchmarkDiscoveredCompanies(icp, targetCount, workspaceId);
   }
+  responseText = llm.text;
 
   if (!responseText) {
     console.warn("Analyst Agent returned empty response from LLM synthesis. Falling back to benchmark accounts.");

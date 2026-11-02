@@ -200,8 +200,8 @@ OPENAI_API_KEY=
 OPENAI_MODEL=gpt-4o-mini
 GEMINI_API_KEY=
 ANTHROPIC_API_KEY=
-ANTHROPIC_MODEL=claude-sonnet-3-5
-LLM_PROVIDER=anthropic
+ANTHROPIC_MODEL=claude-haiku-5-5
+GROQ_API_KEY=
 
 # Research & Search Providers (Server-side ONLY - add your keys when ready)
 TAVILY_API_KEY=

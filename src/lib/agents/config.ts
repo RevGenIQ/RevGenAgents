@@ -20,6 +20,8 @@ export interface AgentCostTable {
   verifyUsd: number;
 }
 
+export const MIN_CONCURRENCY = 2;
+
 export interface AgentConfig {
   /** Wall-clock budget for one invocation; the caller continues the thread afterwards. */
   timeBudgetMs: number;
@@ -40,7 +42,9 @@ export function loadAgentConfig(): AgentConfig {
   const minFit = process.env.AGENT_MIN_FIT_SCORE;
   return {
     timeBudgetMs: numberFromEnv("AGENT_TIME_BUDGET_MS", 240_000, 30_000, 285_000),
-    maxConcurrency: numberFromEnv("AGENT_MAX_CONCURRENCY", 4, 1, 16),
+    // Minimum 2: at maxConcurrency 1 the LangGraph Send fan-out runs only the
+    // first account and never schedules the rest.
+    maxConcurrency: numberFromEnv("AGENT_MAX_CONCURRENCY", 4, MIN_CONCURRENCY, 16),
     maxQueries: numberFromEnv("AGENT_MAX_QUERIES", 6, 1, 20),
     minFitScoreOverride:
       minFit && minFit.trim() !== "" ? numberFromEnv("AGENT_MIN_FIT_SCORE", 70, 0, 100) : null,

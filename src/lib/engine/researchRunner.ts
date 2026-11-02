@@ -11,6 +11,7 @@ import { searchCompaniesWithSignals } from "../adapters/research";
 import { enrichDecisionMaker } from "../adapters/enrichment";
 import { verifyEmailAddress } from "../adapters/verification";
 import { generateOutreachOpener } from "../adapters/llm";
+import { resolveProviders } from "../llm/providers";
 
 export function determinePersonaRole(
   title: string,
@@ -80,15 +81,13 @@ export async function executeResearchRun(runId: string): Promise<void> {
   // Pre-flight key validations: log warnings if live search or analyst LLM keys are missing
   const tavilyKey = process.env.TAVILY_API_KEY;
   const serperKey = process.env.SERPER_API_KEY;
-  const geminiKey = process.env.GEMINI_API_KEY;
-  const openaiKey = process.env.OPENAI_API_KEY;
 
   if (!tavilyKey && !serperKey) {
     console.warn("TAVILY_API_KEY missing: using verified benchmark repository.");
   }
 
-  if (!geminiKey && !openaiKey) {
-    console.warn("GEMINI_API_KEY missing: using verified benchmark repository.");
+  if (resolveProviders().providers.length === 0) {
+    console.warn("No LLM provider key is configured: using verified benchmark repository.");
   }
 
   // Update status to running

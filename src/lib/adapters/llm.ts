@@ -1,8 +1,11 @@
 /**
  * LLM Provider Adapter
- * Supports OpenAI / Gemini / Anthropic if API keys are set.
- * Falls back to high-fidelity rule-based reasoning engine in Demo Mode.
+ * Uses the configured LLM fallback chain (src/lib/llm); falls back to a
+ * rule-based ICP when no provider answers.
  */
+
+import * as z from "zod";
+import { llmJson } from "../agents/tools/llmJson";
 
 export interface ParsedIcpResult {
   targetIndustries: string[];
@@ -16,83 +19,29 @@ export interface ParsedIcpResult {
   minQualificationScore: number;
 }
 
+const strings = z.array(z.string()).default([]);
+const ParsedIcpSchema = z.object({
+  targetIndustries: strings,
+  targetCountries: strings,
+  headcountRanges: strings,
+  targetJobTitles: strings,
+  seniorityLevels: strings,
+  inferredOffering: z.string().default(""),
+  keyPainPoints: strings,
+  suggestedExclusions: strings,
+  minQualificationScore: z.coerce.number().int().min(0).max(100).catch(80),
+});
+
 export async function parseIcpFromInput(
   websiteUrl: string,
   description: string
 ): Promise<ParsedIcpResult> {
-  const geminiKey = process.env.GEMINI_API_KEY;
-  const openaiKey = process.env.OPENAI_API_KEY;
-
-  if (geminiKey) {
-    try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
-        {
-        signal: AbortSignal.timeout(20000),
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: `Extract structured ICP from website: "${websiteUrl}" and description: "${description}". Respond in valid JSON with fields: targetIndustries (array of strings), targetCountries (array of strings), headcountRanges (array of strings e.g. "50-200"), targetJobTitles (array of strings), seniorityLevels (array of strings), inferredOffering (string), keyPainPoints (array of strings), suggestedExclusions (array of strings), minQualificationScore (integer 0-100). Return ONLY the raw JSON.`,
-                  },
-                ],
-              },
-            ],
-          }),
-        }
-      );
-      if (response.ok) {
-        const data = await response.json();
-        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          return JSON.parse(jsonMatch[0]);
-        }
-      }
-    } catch {
-      // fallback to built-in parser
-    }
-  }
-
-  if (openaiKey) {
-    try {
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        signal: AbortSignal.timeout(20000),
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${openaiKey}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [
-            {
-              role: "system",
-              content:
-                "Extract structured ICP from company URL and description. Return strictly JSON with targetIndustries, targetCountries, headcountRanges, targetJobTitles, seniorityLevels, inferredOffering, keyPainPoints, suggestedExclusions, minQualificationScore.",
-            },
-            {
-              role: "user",
-              content: `Website: ${websiteUrl}\nDescription: ${description}`,
-            },
-          ],
-          response_format: { type: "json_object" },
-        }),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        const content = data?.choices?.[0]?.message?.content;
-        if (content) {
-          return JSON.parse(content);
-        }
-      }
-    } catch {
-      // fallback
-    }
-  }
+  const result = await llmJson(ParsedIcpSchema, {
+    system:
+      "Extract a structured ICP from a company website and description. Return JSON with targetIndustries, targetCountries, headcountRanges (e.g. \"50-200\"), targetJobTitles, seniorityLevels (string arrays), inferredOffering (string), keyPainPoints, suggestedExclusions (string arrays) and minQualificationScore (integer 0-100).",
+    user: `Website: ${websiteUrl}\nDescription: ${description}`,
+  });
+  if (result.ok) return result.data;
 
   // High-fidelity fallback logic (Demo Mode)
   const isMfg =

@@ -29,7 +29,7 @@ export function createFindContacts(deps: AgentDeps) {
       contactsFound: contacts.length,
       contactMatched: contacts[0] ? `${contacts[0].firstName} ${contacts[0].lastName}`.trim() : null,
       title: contacts[0]?.title ?? null,
-      ...(result.ok ? {} : { error: result.error.code }),
+      ...(result.ok ? {} : { error: result.error.code, detail: result.error.message.slice(0, 500) }),
     });
     return { contacts, usage: result.usage };
   };

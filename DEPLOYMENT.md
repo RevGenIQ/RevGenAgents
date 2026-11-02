@@ -46,8 +46,9 @@ OPENAI_API_KEY="your_openai_api_key"
 OPENAI_MODEL="gpt-4o-mini"
 GEMINI_API_KEY="your_gemini_api_key"
 ANTHROPIC_API_KEY="your_anthropic_api_key"
-ANTHROPIC_MODEL="claude-sonnet-3-5"
-LLM_PROVIDER="anthropic"
+ANTHROPIC_MODEL="claude-haiku-5-5"
+GROQ_API_KEY="your_groq_api_key"
+# LLM_PROVIDER_ORDER="openai,gemini,anthropic,groq"
 
 # --- Autonomous Search & Web Research Providers ---
 TAVILY_API_KEY="your_tavily_api_key"
