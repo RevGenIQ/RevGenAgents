@@ -4,6 +4,7 @@ import { rateLimit } from "@/lib/security/rateLimit";
 import { getSessionFromRequest, verifyWorkspaceAccess } from "@/lib/security/auth";
 import { isValidUUID } from "@/lib/security/validator";
 import { apiError, apiSuccess } from "@/lib/api/response";
+import { verifyCsrfAndOrigin } from "@/lib/security/cors";
 
 export async function GET(
   request: NextRequest,
@@ -17,6 +18,10 @@ export async function GET(
     const { id } = await params;
     if (!isValidUUID(id)) {
       return apiError("Invalid run identifier", 400, "INVALID_ID");
+    }
+
+    if (!getSessionFromRequest(request)) {
+      return apiError("Authentication required.", 401, "UNAUTHENTICATED");
     }
 
     const supabase = createServerClient();
@@ -34,11 +39,9 @@ export async function GET(
 
     // 3. Authorization check (prevent BOLA/IDOR)
     const session = getSessionFromRequest(request);
-    if (session) {
-      const access = verifyWorkspaceAccess(session, run.workspace_id);
-      if (!access.isAuthorized && access.errorResponse) {
-        return access.errorResponse;
-      }
+    const access = verifyWorkspaceAccess(session, run.workspace_id);
+    if (!access.isAuthorized && access.errorResponse) {
+      return access.errorResponse;
     }
 
     // 4. Fetch operational tasks for this run
@@ -146,7 +149,32 @@ export async function DELETE(
       return apiError("Invalid run identifier", 400, "INVALID_ID");
     }
 
+    if (!getSessionFromRequest(request)) {
+      return apiError("Authentication required.", 401, "UNAUTHENTICATED");
+    }
+
+    const csrf = verifyCsrfAndOrigin(request);
+    if (!csrf.isAllowed && csrf.errorResponse) return csrf.errorResponse;
+
+    const rl = rateLimit(request, { max: 20, windowMs: 60 * 1000, prefix: "run_delete" });
+    if (!rl.allowed && rl.response) return rl.response;
+
     const supabase = createServerClient();
+
+    const { data: existing } = await supabase
+      .from("research_runs")
+      .select("workspace_id")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (!existing) {
+      return apiError("Run not found", 404, "NOT_FOUND");
+    }
+
+    const access = verifyWorkspaceAccess(getSessionFromRequest(request), existing.workspace_id);
+    if (!access.isAuthorized && access.errorResponse) {
+      return access.errorResponse;
+    }
 
     // Delete associated research tasks first
     await supabase.from("research_tasks").delete().eq("run_id", id);

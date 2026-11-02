@@ -28,6 +28,7 @@ export async function parseIcpFromInput(
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
         {
+        signal: AbortSignal.timeout(20000),
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -59,6 +60,7 @@ export async function parseIcpFromInput(
   if (openaiKey) {
     try {
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        signal: AbortSignal.timeout(20000),
         method: "POST",
         headers: {
           "Content-Type": "application/json",

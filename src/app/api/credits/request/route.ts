@@ -1,55 +1,62 @@
 import { NextRequest } from "next/server";
-import { getSessionFromRequest } from "@/lib/security/auth";
+import { getSessionFromRequest, verifyWorkspaceAccess } from "@/lib/security/auth";
+import { verifyCsrfAndOrigin } from "@/lib/security/cors";
+import { rateLimit } from "@/lib/security/rateLimit";
+import { sanitizeHtml } from "@/lib/security/validator";
 import { apiError, apiSuccess } from "@/lib/api/response";
 import { createServerClient } from "@/lib/supabase/server";
 
+const CREDIT_REQUEST_ACTION = "CREDIT_TOPUP_REQUEST";
+
 export async function POST(request: NextRequest) {
   try {
-    const session = getSessionFromRequest(request);
-    const body = await request.json().catch(() => ({}));
-    const {
-      phoneNumber,
-      requestedCredits = 100,
-      reason = "Scaling active pipeline searches",
-      userEmail,
-      userName,
-      workspaceName,
-    } = body;
+    const csrf = verifyCsrfAndOrigin(request);
+    if (!csrf.isAllowed && csrf.errorResponse) return csrf.errorResponse;
 
-    if (!phoneNumber || phoneNumber.trim().length < 8) {
+    const rl = rateLimit(request, { max: 5, windowMs: 60 * 60 * 1000, prefix: "credit_request" });
+    if (!rl.allowed && rl.response) return rl.response;
+
+    // Credit requests belong to a real client workspace (audit_logs.workspace_id is a NOT NULL FK).
+    const session = getSessionFromRequest(request);
+    const wsId = session?.workspaceId || "";
+    const access = verifyWorkspaceAccess(session, wsId);
+    if (!access.isAuthorized && access.errorResponse) return access.errorResponse;
+
+    const body = await request.json().catch(() => ({}));
+    const phoneNumber = String(body.phoneNumber || "").trim();
+    const requestedCredits = Number(body.requestedCredits ?? 100);
+    const reason = sanitizeHtml(String(body.reason || "Scaling active pipeline searches").slice(0, 500));
+
+    if (!/^[+\d][\d\s()-]{7,20}$/.test(phoneNumber)) {
       return apiError("A valid contact phone number is required.", 400, "INVALID_PHONE");
     }
-
-    const email = session?.email || userEmail || "user@enterprise.com";
-    const name = userName || session?.fullName || email.split("@")[0];
-    const wsId = session?.workspaceId || "global";
-    const wsName = workspaceName || "Active Workspace";
+    if (!Number.isInteger(requestedCredits) || requestedCredits < 1 || requestedCredits > 100000) {
+      return apiError("Requested credits must be a whole number between 1 and 100,000.", 400, "INVALID_CREDITS");
+    }
 
     const supabase = createServerClient();
-
-    // Log the credit request to audit_logs / usage_events so admin can inspect and grant
-    await supabase.from("audit_logs").insert({
+    const { error } = await supabase.from("audit_logs").insert({
       workspace_id: wsId,
-      actor_id: session?.userId || "guest-user",
-      actor_email: email,
-      action: "CREDIT_TOPUP_REQUEST",
-      resource_type: "credits",
-      resource_id: `req-${Date.now()}`,
-      metadata: {
-        phoneNumber: phoneNumber.trim(),
-        requestedCredits: Number(requestedCredits),
-        userName: name,
-        workspaceName: wsName,
+      actor_email: session!.email,
+      action: CREDIT_REQUEST_ACTION,
+      target_type: "credits",
+      details: {
+        phoneNumber,
+        requestedCredits,
+        userName: session!.fullName || session!.email.split("@")[0],
+        workspaceName: session!.companyName || "",
         reason,
         status: "pending",
-        requested_at: new Date().toISOString(),
       },
     });
+
+    if (error) {
+      return apiError(error.message, 500, "CREDIT_REQUEST_INSERT_ERROR");
+    }
 
     return apiSuccess({
       message: "Credit request submitted successfully. Super Admin will contact you at your phone number.",
       status: "pending",
-      phoneNumber,
     });
   } catch (err: unknown) {
     return apiError(
@@ -62,11 +69,16 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const session = getSessionFromRequest(request);
+    if (session?.role !== "admin") {
+      return apiError("Admin access required.", session ? 403 : 401, "FORBIDDEN");
+    }
+
     const supabase = createServerClient();
     const { data: requests, error } = await supabase
       .from("audit_logs")
       .select("*")
-      .eq("action", "CREDIT_TOPUP_REQUEST")
+      .eq("action", CREDIT_REQUEST_ACTION)
       .order("created_at", { ascending: false })
       .limit(50);
 
@@ -77,12 +89,12 @@ export async function GET(request: NextRequest) {
     const formatted = (requests || []).map((r) => ({
       id: r.id,
       email: r.actor_email,
-      phoneNumber: r.metadata?.phoneNumber || "N/A",
-      userName: r.metadata?.userName || r.actor_email.split("@")[0],
-      workspaceName: r.metadata?.workspaceName || "Enterprise Workspace",
-      requestedCredits: r.metadata?.requestedCredits || 100,
-      reason: r.metadata?.reason || "Pipeline expansion",
-      status: r.metadata?.status || "pending",
+      phoneNumber: r.details?.phoneNumber || "N/A",
+      userName: r.details?.userName || String(r.actor_email || "").split("@")[0],
+      workspaceName: r.details?.workspaceName || "",
+      requestedCredits: r.details?.requestedCredits || 0,
+      reason: r.details?.reason || "",
+      status: r.details?.status || "pending",
       createdAt: r.created_at,
     }));
 

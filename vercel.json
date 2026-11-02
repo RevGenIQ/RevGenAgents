@@ -44,7 +44,10 @@
   ],
   "functions": {
     "src/app/api/runs/route.ts": {
-      "maxDuration": 60
+      "maxDuration": 300
+    },
+    "src/app/api/runs/[id]/retry/route.ts": {
+      "maxDuration": 300
     },
     "src/app/api/runs/[id]/stream/route.ts": {
       "maxDuration": 60

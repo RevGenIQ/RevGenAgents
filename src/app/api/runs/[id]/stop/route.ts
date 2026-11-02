@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { getSessionFromRequest, verifyWorkspaceAccess } from "@/lib/security/auth";
+import { verifyCsrfAndOrigin } from "@/lib/security/cors";
+import { isValidUUID } from "@/lib/security/validator";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const csrf = verifyCsrfAndOrigin(request);
+    if (!csrf.isAllowed && csrf.errorResponse) return csrf.errorResponse;
+
     const { id } = await params;
+    if (!isValidUUID(id)) {
+      return NextResponse.json({ error: "Invalid run identifier" }, { status: 400 });
+    }
     const session = getSessionFromRequest(request);
     const supabase = createServerClient();
 
@@ -45,7 +53,7 @@ export async function POST(
 
     await supabase.from("audit_logs").insert({
       workspace_id: run.workspace_id,
-      actor_email: "user@revgeniq.os",
+      actor_email: session?.email || "unknown",
       action: "run_stopped",
       target_type: "research_run",
       target_id: id,

@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { after, NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { executeResearchRun } from "@/lib/engine/researchRunner";
 import { rateLimit } from "@/lib/security/rateLimit";
@@ -6,6 +6,9 @@ import { verifyCsrfAndOrigin } from "@/lib/security/cors";
 import { getSessionFromRequest, verifyWorkspaceAccess, DEMO_WORKSPACE_ID } from "@/lib/security/auth";
 import { sanitizeHtml } from "@/lib/security/validator";
 import { apiError, apiSuccess } from "@/lib/api/response";
+
+// Research runs execute inside after(); give them the longest window the platform allows.
+export const maxDuration = 300;
 
 export async function GET(request: NextRequest) {
   try {
@@ -118,14 +121,15 @@ export async function POST(request: NextRequest) {
       return apiError(error?.message || "Failed to create run", 500, "DB_INSERT_ERROR");
     }
 
-    // Trigger background research execution asynchronously without blocking HTTP response
-    (async () => {
+    // after() keeps the serverless invocation alive until the run finishes
+    // (up to maxDuration); a detached promise would be frozen after the response.
+    after(async () => {
       try {
         await executeResearchRun(newRun.id);
       } catch (e) {
         console.error("Background run error:", e);
       }
-    })();
+    });
 
     // Audit log
     await supabase.from("audit_logs").insert({

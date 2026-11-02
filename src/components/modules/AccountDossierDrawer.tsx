@@ -1125,7 +1125,7 @@ ${seller}`;
                       });
                       if (res.ok) {
                         const data = await res.json();
-                        setChallengeSuccess(data.message || "Challenge upheld. $10 credit auto-issued.");
+                        setChallengeSuccess(data.message || "Challenge recorded for review.");
                         setShowChallengeModal(false);
                       }
                     } catch (e) {
@@ -1136,7 +1136,7 @@ ${seller}`;
                   }}
                   className="px-3 py-1.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-semibold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
                 >
-                  {isSubmittingChallenge ? "Processing..." : "Submit Challenge & Issue Credit"}
+                  {isSubmittingChallenge ? "Processing..." : "Submit Challenge"}
                 </button>
               </div>
             </div>

@@ -54,6 +54,13 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Mirrors the server's scoping: only admin and humagent sessions get staff views.
+function toOperatingRole(role: string | undefined): OperatingRole {
+  if (role === "admin") return "admin";
+  if (role === "humagent") return "human_agent";
+  return "client";
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [operatingRole, setOperatingRoleState] =
@@ -76,16 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const json = await res.json();
         if (json.authenticated && json.user) {
           setUser(json.user);
-          if (json.user.role === "admin") {
-            setOperatingRoleState("admin");
-          } else if (
-            json.user.role === "humagent" ||
-            json.user.role === "researcher"
-          ) {
-            setOperatingRoleState("human_agent");
-          } else {
-            setOperatingRoleState("client");
-          }
+          setOperatingRoleState(toOperatingRole(json.user.role));
           await syncWorkflowFromDatabase();
           return;
         }
@@ -138,13 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       setUser(data.user);
-      if (data.user?.role === "admin") {
-        setOperatingRoleState("admin");
-      } else if (data.user?.role === "humagent") {
-        setOperatingRoleState("human_agent");
-      } else {
-        setOperatingRoleState("client");
-      }
+      setOperatingRoleState(toOperatingRole(data.user?.role));
       setIsAuthModalOpen(false);
       await syncWorkflowFromDatabase();
       return { success: true, redirectUrl: data.redirectUrl };

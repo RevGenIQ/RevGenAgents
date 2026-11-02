@@ -2,16 +2,8 @@
 -- RevGen AI — Clean Role-Authorized Schema & Complete Wipe of Previous Data
 -- ==============================================================================
 
--- 1. Wipe all previous data across existing tables
-TRUNCATE TABLE
-  public.audit_logs,
-  public.approvals,
-  public.research_runs,
-  public.signals,
-  public.contacts,
-  public.companies,
-  public.workspaces
-RESTART IDENTITY CASCADE;
+-- 1. (Removed) This migration previously TRUNCATEd all data tables. Re-running it
+--    would wipe production data, so the wipe has been taken out.
 
 -- 2. Client Access Requests (Clients request access via Registration form -> Admin approves & generates credentials)
 CREATE TABLE IF NOT EXISTS public.client_access_requests (
@@ -74,7 +66,7 @@ CREATE TABLE IF NOT EXISTS public.workspace_messages (
   metadata JSONB DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ DEFAULT now()
 );
-ALTER TABLE public.workspace_messages DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.workspace_messages ENABLE ROW LEVEL SECURITY;
 
 -- 5. Extend Companies for All 20 Admin Data Enrichment Fields + 5 Signal Matching Columns + Delivery PDF Fields
 ALTER TABLE IF EXISTS public.companies
@@ -112,10 +104,7 @@ ALTER TABLE IF EXISTS public.companies
   ADD COLUMN IF NOT EXISTS exported_by_client BOOLEAN DEFAULT false,
   ADD COLUMN IF NOT EXISTS client_feedback TEXT;
 
--- Wipe any data in the new tables too so database starts 100% clean
-TRUNCATE TABLE public.client_access_requests RESTART IDENTITY CASCADE;
-TRUNCATE TABLE public.humagent_users RESTART IDENTITY CASCADE;
-
--- Enable permissive service access for API routes
-ALTER TABLE public.client_access_requests DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.humagent_users DISABLE ROW LEVEL SECURITY;
+-- RLS stays enabled with no anon/authenticated policies: these tables hold
+-- credentials and are only reachable through the service role in API routes.
+ALTER TABLE public.client_access_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.humagent_users ENABLE ROW LEVEL SECURITY;

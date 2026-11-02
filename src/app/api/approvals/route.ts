@@ -62,6 +62,9 @@ export async function PATCH(request: NextRequest) {
     if (!rl.allowed && rl.response) return rl.response;
 
     const session = getSessionFromRequest(request);
+    if (!session) {
+      return apiError("Authentication required.", 401, "UNAUTHENTICATED");
+    }
     const body = await request.json().catch(() => ({}));
     const { id, status, notes = "" } = body;
 
@@ -83,11 +86,9 @@ export async function PATCH(request: NextRequest) {
       return apiError("Approval record not found", 404, "NOT_FOUND");
     }
 
-    if (session) {
-      const access = verifyWorkspaceAccess(session, existing.workspace_id);
-      if (!access.isAuthorized && access.errorResponse) {
-        return access.errorResponse;
-      }
+    const access = verifyWorkspaceAccess(session, existing.workspace_id);
+    if (!access.isAuthorized && access.errorResponse) {
+      return access.errorResponse;
     }
 
     const { data: updated, error } = await supabase

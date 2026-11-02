@@ -7,12 +7,18 @@ import {
 } from "@/lib/security/auth";
 import { apiError, apiSuccess } from "@/lib/api/response";
 import { createServerClient } from "@/lib/supabase/server";
+import { rateLimit } from "@/lib/security/rateLimit";
 
 export async function POST(request: NextRequest) {
   try {
     const csrf = verifyCsrfAndOrigin(request);
     if (!csrf.isAllowed && csrf.errorResponse) {
       return csrf.errorResponse;
+    }
+
+    const rl = rateLimit(request, { max: 10, windowMs: 15 * 60 * 1000, prefix: "auth_login" });
+    if (!rl.allowed && rl.response) {
+      return rl.response;
     }
 
     const body = await request.json().catch(() => ({}));
@@ -26,16 +32,17 @@ export async function POST(request: NextRequest) {
       return apiError("Login ID / Email and Password are required.", 400, "MISSING_CREDENTIALS");
     }
 
-    // 1. Check for Admin Login (strictly from .env.local ADMIN_EMAIL & ADMIN_PASSWORD)
-    const adminEmail = (process.env.ADMIN_EMAIL || "admin@revgeniq.os").trim().toLowerCase();
-    const adminPassword = (process.env.ADMIN_PASSWORD || "RevGen_Admin#Sec2026!Master")
+    // 1. Admin login: only from ADMIN_EMAIL & ADMIN_PASSWORD. Disabled when either is unset.
+    const adminEmail = (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
+    const adminPassword = (process.env.ADMIN_PASSWORD || "")
       .replace(/^["']|["']$/g, "")
       .trim();
 
     if (
+      adminEmail &&
+      adminPassword &&
       trimmedIdLower === adminEmail &&
-      (timingSafeCompare(trimmedPassword, adminPassword) ||
-        timingSafeCompare(trimmedPassword, "RevGen_Admin#Sec2026!Master"))
+      timingSafeCompare(trimmedPassword, adminPassword)
     ) {
       const token = createSessionToken({
         userId: "admin-master-uid-0001",
@@ -86,7 +93,7 @@ export async function POST(request: NextRequest) {
       (h: any) =>
         (String(h.login_id || "").toLowerCase() === trimmedIdLower ||
           String(h.email || "").toLowerCase() === trimmedIdLower) &&
-        String(h.password_plain || "") === trimmedPassword
+        timingSafeCompare(String(h.password_plain || ""), trimmedPassword)
     );
 
     if (matchedHumagent) {
@@ -140,60 +147,43 @@ export async function POST(request: NextRequest) {
         String(ws.generated_login_id || "").toLowerCase() === trimmedIdLower;
       const primaryEmailMatch =
         String(ws.primary_email || "").toLowerCase() === trimmedIdLower;
-      const emailDomain = trimmedIdLower.includes("@")
-        ? trimmedIdLower.split("@")[1]
-        : "";
-      const domainSpokespersonMatch =
-        emailDomain && String(ws.domain || "").toLowerCase() === emailDomain;
       const spokespersonsList = Array.isArray(ws.spokespersons)
         ? ws.spokespersons
         : [];
+      // Only emails already registered on the workspace may log in; a matching
+      // email domain alone is not enough.
       const spokespersonEmailMatch = spokespersonsList.some(
         (sp: any) => String(sp.email || "").toLowerCase() === trimmedIdLower
       );
 
-      const passwordMatches =
-        String(ws.generated_password || "") === trimmedPassword;
+      const passwordMatches = timingSafeCompare(
+        String(ws.generated_password || ""),
+        trimmedPassword
+      );
 
       return (
         passwordMatches &&
-        (genIdMatch ||
-          primaryEmailMatch ||
-          domainSpokespersonMatch ||
-          spokespersonEmailMatch)
+        (genIdMatch || primaryEmailMatch || spokespersonEmailMatch)
       );
     });
 
     if (matchedWorkspace) {
-      // If a spokesperson logged in with their @company.com email using the company's Admin-generated password, ensure they are listed in spokespersons
       let spokespersonName = matchedWorkspace.name + " Spokesperson";
       let spokespersonEmail = matchedWorkspace.primary_email || `${matchedWorkspace.slug}@${matchedWorkspace.domain}`;
 
       const spokespersonsList = Array.isArray(matchedWorkspace.spokespersons)
-        ? [...matchedWorkspace.spokespersons]
+        ? matchedWorkspace.spokespersons
         : [];
+
+      const existingSp = trimmedIdLower.includes("@")
+        ? spokespersonsList.find(
+            (sp: any) => String(sp.email || "").toLowerCase() === trimmedIdLower
+          )
+        : undefined;
 
       if (trimmedIdLower.includes("@")) {
         spokespersonEmail = trimmedIdLower;
-        const existingSp = spokespersonsList.find(
-          (sp: any) => String(sp.email || "").toLowerCase() === trimmedIdLower
-        );
-        if (existingSp) {
-          spokespersonName = existingSp.fullName || existingSp.name || spokespersonName;
-        } else {
-          spokespersonName = trimmedIdLower.split("@")[0];
-          spokespersonsList.push({
-            id: `sp-${Date.now()}`,
-            fullName: spokespersonName,
-            email: trimmedIdLower,
-            title: "Company Spokesperson",
-            joinedAt: new Date().toISOString(),
-          });
-          await supabase
-            .from("workspaces")
-            .update({ spokespersons: spokespersonsList })
-            .eq("id", matchedWorkspace.id);
-        }
+        spokespersonName = existingSp?.fullName || existingSp?.name || spokespersonName;
       } else if (spokespersonsList[0]) {
         spokespersonName = spokespersonsList[0].fullName || spokespersonName;
         spokespersonEmail = spokespersonsList[0].email || spokespersonEmail;

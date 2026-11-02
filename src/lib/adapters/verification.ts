@@ -51,8 +51,7 @@ export async function verifyEmailAddress(email: string): Promise<VerificationRes
       const res = await fetch(
         `https://api.zerobounce.net/v2/validate?api_key=${zeroBounceKey}&email=${encodeURIComponent(
           email
-        )}`
-      );
+        )}`, { signal: AbortSignal.timeout(10000) });
       if (res.ok) {
         const data = await res.json();
         const zbStatus = data.status;

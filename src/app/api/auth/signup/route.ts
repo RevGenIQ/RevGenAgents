@@ -7,9 +7,13 @@ import {
 } from "@/lib/security/validator";
 import { apiError, apiSuccess } from "@/lib/api/response";
 import { createServerClient } from "@/lib/supabase/server";
+import { rateLimit } from "@/lib/security/rateLimit";
 
 export async function POST(request: NextRequest) {
   try {
+    const rl = rateLimit(request, { max: 5, windowMs: 60 * 60 * 1000, prefix: "auth_signup" });
+    if (!rl.allowed && rl.response) return rl.response;
+
     const csrf = verifyCsrfAndOrigin(request);
     if (!csrf.isAllowed && csrf.errorResponse) {
       return csrf.errorResponse;

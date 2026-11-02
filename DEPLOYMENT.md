@@ -32,7 +32,7 @@ SUPABASE_SERVICE_ROLE_KEY="your_supabase_service_role_secret_key"
 DATABASE_URL="postgresql://postgres.your-project-id:your-db-password@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres"
 
 # --- Super Admin Credentials ---
-ADMIN_EMAIL="admin@revgeniq.os"
+ADMIN_EMAIL="admin@example.com"
 ADMIN_PASSWORD="your_secure_admin_password"
 ADMIN_SECRET_KEY="your_random_admin_secret_key_32_chars"
 
@@ -80,7 +80,7 @@ As Founder / Owner, you have two primary personas in RevGen B2Bos:
   - Credit allotment & MCP credit refunds for enterprise workspaces.
   - Tamper-evident cryptographic audit log inspection.
 - **Login Credentials**:
-  - Email: `ADMIN_EMAIL` from your `.env` (`admin@revgeniq.os`)
+  - Email: `ADMIN_EMAIL` from your `.env` (`admin@example.com`)
   - Password: `ADMIN_PASSWORD` from your `.env`
 
 ### 2. **Tenant Workspace Owner Role**

@@ -30,6 +30,12 @@ export interface RateLimitOptions {
  * Extracts a client IP from NextRequest headers safely
  */
 export function getClientIp(request: NextRequest): string {
+  // Platform-set headers first: clients can prepend their own x-forwarded-for entries.
+  const platformIp =
+    request.headers.get("x-vercel-forwarded-for") ||
+    request.headers.get("x-nf-client-connection-ip");
+  if (platformIp) return platformIp.split(",")[0].trim();
+
   const xForwardedFor = request.headers.get("x-forwarded-for");
   if (xForwardedFor) {
     const ips = xForwardedFor.split(",").map((ip) => ip.trim());

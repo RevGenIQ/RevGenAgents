@@ -4,6 +4,23 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "http://localhost:3000")
   .split(",")
   .map((o) => o.trim());
 
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host.toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function originFromReferer(referer: string | null): string {
+  if (!referer) return "";
+  try {
+    return new URL(referer).origin;
+  } catch {
+    return "";
+  }
+}
+
 /**
  * Validates the Origin and Referer for CSRF protection on state-changing methods (POST, PUT, DELETE, PATCH).
  */
@@ -18,13 +35,15 @@ export function verifyCsrfAndOrigin(request: NextRequest): {
     return { isAllowed: true };
   }
 
-  const origin = request.headers.get("origin");
+  // Browsers always send Origin (or at least Referer) on cross-site state-changing
+  // requests, so a request carrying neither cannot be a CSRF from a victim's browser.
+  const origin = request.headers.get("origin") || originFromReferer(request.headers.get("referer"));
   const host = request.headers.get("host");
 
-  // In standard browser API calls from same origin:
   if (origin) {
     const isExplicitlyAllowed = ALLOWED_ORIGINS.includes(origin);
-    const isSameHost = origin.includes(host || "");
+    // Exact host comparison: a substring check would accept e.g. "evil-<host>.com".
+    const isSameHost = !!host && hostOf(origin) === host.toLowerCase();
 
     if (!isExplicitlyAllowed && !isSameHost) {
       return {

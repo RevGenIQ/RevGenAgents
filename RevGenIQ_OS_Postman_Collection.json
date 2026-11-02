@@ -13,12 +13,12 @@
     },
     {
       "key": "adminEmail",
-      "value": "admin@revgeniq.os",
+      "value": "admin@example.com",
       "type": "string"
     },
     {
       "key": "adminPassword",
-      "value": "RevGen_Admin#Sec2026!Master",
+      "value": "change_me_to_a_long_random_password",
       "type": "string"
     },
     {

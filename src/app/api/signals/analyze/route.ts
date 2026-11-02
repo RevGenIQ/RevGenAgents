@@ -1,10 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateOutreachOpener } from "@/lib/adapters/llm";
+import { getSessionFromRequest } from "@/lib/security/auth";
+import { verifyCsrfAndOrigin } from "@/lib/security/cors";
+import { rateLimit } from "@/lib/security/rateLimit";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { text = "", client = "RevGenIQ", valueProp = "" } = body;
+    const csrf = verifyCsrfAndOrigin(request);
+    if (!csrf.isAllowed && csrf.errorResponse) return csrf.errorResponse;
+
+    const rl = rateLimit(request, { max: 30, windowMs: 60 * 1000, prefix: "signals_analyze" });
+    if (!rl.allowed && rl.response) return rl.response;
+
+    if (!getSessionFromRequest(request)) {
+      return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+    }
+
+    const body = await request.json().catch(() => ({}));
+    const text = typeof body.text === "string" ? body.text.slice(0, 10000) : "";
+    const client = typeof body.client === "string" ? body.client : "RevGenIQ";
+    const valueProp = typeof body.valueProp === "string" ? body.valueProp : "";
 
     if (!text.trim()) {
       return NextResponse.json({ error: "Text is required for signal analysis" }, { status: 400 });

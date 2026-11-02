@@ -13,8 +13,24 @@ export interface UserSession {
   exp: number;
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || "revgeniq_jwt_token_auth_secret_secure_session_key_2026";
-const ADMIN_SECRET = process.env.ADMIN_SECRET_KEY || "revgeniq_super_secret_admin_key_2026_x89f_secure";
+const MIN_SECRET_LENGTH = 32;
+
+/**
+ * Reads a signing secret from the environment. There is deliberately no fallback:
+ * a missing or short secret must fail closed instead of signing with a value
+ * that anyone reading the source could reproduce.
+ */
+function getSigningSecret(name: "JWT_SECRET" | "ADMIN_SECRET_KEY"): string {
+  const value = (process.env[name] || "").trim();
+  if (value.length < MIN_SECRET_LENGTH) {
+    throw new Error(`${name} must be set to at least ${MIN_SECRET_LENGTH} characters.`);
+  }
+  return value;
+}
+
+function secretForRole(role: UserSession["role"]): string {
+  return role === "admin" ? getSigningSecret("ADMIN_SECRET_KEY") : getSigningSecret("JWT_SECRET");
+}
 
 export const COOKIE_SESSION_NAME = "revgeniq_session";
 
@@ -28,7 +44,7 @@ export function createSessionToken(payload: Omit<UserSession, "exp">, expiresInS
   const encodedHeader = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
   const encodedPayload = Buffer.from(JSON.stringify(fullPayload)).toString("base64url");
   
-  const secret = payload.role === "admin" ? ADMIN_SECRET : JWT_SECRET;
+  const secret = secretForRole(payload.role);
   const signature = crypto
     .createHmac("sha256", secret)
     .update(`${encodedHeader}.${encodedPayload}`)
@@ -55,7 +71,7 @@ export function verifySessionToken(token: string): UserSession | null {
       return null;
     }
 
-    const secret = payload.role === "admin" ? ADMIN_SECRET : JWT_SECRET;
+    const secret = secretForRole(payload.role);
     const expectedSignature = crypto
       .createHmac("sha256", secret)
       .update(`${headerB64}.${payloadB64}`)
@@ -132,15 +148,15 @@ export function generateTenantWorkspaceId(domain: string): string {
  */
 export const DEMO_WORKSPACE_ID = "298c3a99-c53a-4493-acd5-1eb2964b2e6c";
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function verifyWorkspaceAccess(
   session: UserSession | null,
   requestedWorkspaceId: string
 ): { isAuthorized: boolean; errorResponse?: NextResponse } {
-  // 1. Unauthenticated users: ONLY permitted to read DEMO_WORKSPACE_ID
+  // 1. Unauthenticated callers never get tenant data (the demo workspace is not seeded,
+  //    and the public landing page only uses /api/public-intent).
   if (!session) {
-    if (!requestedWorkspaceId || requestedWorkspaceId === DEMO_WORKSPACE_ID) {
-      return { isAuthorized: true };
-    }
     return {
       isAuthorized: false,
       errorResponse: NextResponse.json(
@@ -150,8 +166,18 @@ export function verifyWorkspaceAccess(
     };
   }
 
-  // 2. Super-admin has cross-tenant administrative oversight
+  // 2. Super-admin has cross-tenant administrative oversight, but must name a real
+  //    workspace: admin sessions carry a placeholder ID that is not a UUID.
   if (session.role === "admin") {
+    if (!UUID_PATTERN.test(requestedWorkspaceId || "")) {
+      return {
+        isAuthorized: false,
+        errorResponse: NextResponse.json(
+          { error: "Bad Request", message: "Admin requests must specify a valid workspaceId." },
+          { status: 400 }
+        ),
+      };
+    }
     return { isAuthorized: true };
   }
 

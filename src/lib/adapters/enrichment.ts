@@ -2,7 +2,7 @@
  * Contact Enrichment Provider Adapter
  * Connects directly to Apollo API or Google Serper (LinkedIn profiles)
  * to identify REAL decision makers with verifiable LinkedIn profiles.
- * STRICT: Never generates generic placeholder names like "Leadership Team" or hallucinations.
+ * When no named person is found, returns an explicitly labelled, unconfirmed placeholder.
  */
 
 export interface EnrichedContactCandidate {
@@ -36,6 +36,7 @@ export async function enrichDecisionMaker(
   if (apolloKey) {
     try {
       const res = await fetch("https://api.apollo.io/v1/people/match", {
+        signal: AbortSignal.timeout(15000),
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -87,6 +88,7 @@ export async function enrichDecisionMaker(
       const q = `site:linkedin.com/in "${companyName}" (${titlesQuery} OR "CTO" OR "VP" OR "Director" OR "Head" OR "Founder" OR "CEO")`;
 
       const res = await fetch("https://google.serper.dev/search", {
+        signal: AbortSignal.timeout(15000),
         method: "POST",
         headers: {
           "X-API-KEY": serperKey,
@@ -191,8 +193,10 @@ export async function enrichDecisionMaker(
             workEmail,
             personalLinkedin: topProfile.link,
             roleStartDate: new Date().toISOString().split("T")[0],
-            currentRoleConfirmed: true,
-            employmentEvidenceNote: `Verified via live LinkedIn executive profile: "${topProfile.snippet?.slice(0, 160)}..."`,
+            // A search snippet is not proof of current employment, and the email
+            // is a guessed first.last pattern: both need human verification.
+            currentRoleConfirmed: false,
+            employmentEvidenceNote: `Found via LinkedIn search result (unconfirmed; email address pattern guessed): "${topProfile.snippet?.slice(0, 160)}..."`,
           };
         }
       }
@@ -201,22 +205,20 @@ export async function enrichDecisionMaker(
     }
   }
 
-  // 3. Fallback: Calibrated executive persona based on target titles
+  // 3. Fallback: no named person was found. Return a clearly labelled role inbox
+  //    that is never treated as a verified contact.
   const defaultTitle = targetTitles[0] || "Head of Procurement & Supply Chain";
-  const personaFirst = "Sourcing";
-  const personaLast = "Leadership";
-  const personaEmail = `procurement@${cleanDomain}`;
 
   return {
-    firstName: personaFirst,
-    lastName: personaLast,
+    firstName: "Unidentified",
+    lastName: "Contact",
     title: defaultTitle,
-    seniority: "Head",
-    department: "Procurement & Supply Chain",
-    workEmail: personaEmail,
-    personalLinkedin: `https://www.linkedin.com/company/${cleanDomain.split(".")[0]}`,
-    roleStartDate: new Date().toISOString().split("T")[0],
-    currentRoleConfirmed: true,
-    employmentEvidenceNote: `Corroborated via company procurement directory & domain verification: ${defaultTitle} at ${companyName}.`,
+    seniority: "Unknown",
+    department: "Unknown",
+    workEmail: `procurement@${cleanDomain}`,
+    personalLinkedin: "",
+    roleStartDate: "",
+    currentRoleConfirmed: false,
+    employmentEvidenceNote: `PLACEHOLDER: no named decision maker found for ${companyName}. Generic role inbox only; needs human research.`,
   };
 }

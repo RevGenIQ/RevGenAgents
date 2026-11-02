@@ -428,11 +428,11 @@ export async function executeResearchRun(runId: string): Promise<void> {
           direct_number: enrichedDm.directNumber,
           contact_city: item.city,
           contact_country: item.country,
-          role_start_date: enrichedDm.roleStartDate,
+          role_start_date: enrichedDm.roleStartDate || null,
           verification_status: enrichedDm.currentRoleConfirmed
             ? "verified_current"
             : "unverified",
-          verified_at: new Date().toISOString(),
+          verified_at: enrichedDm.currentRoleConfirmed ? new Date().toISOString() : null,
           email_status: verifyRes.status,
           icp_score: Math.min(
             99,
@@ -448,7 +448,10 @@ export async function executeResearchRun(runId: string): Promise<void> {
         .select("id")
         .single();
 
-      const isVerifiedLead = contact && (verifyRes.status === "deliverable" || enrichedDm.currentRoleConfirmed);
+      // A lead only counts as verified when a provider confirmed the person's current
+      // role AND the email is deliverable; guessed or placeholder contacts never count.
+      const isVerifiedLead =
+        !!contact && enrichedDm.currentRoleConfirmed && verifyRes.status === "deliverable";
       if (isVerifiedLead) {
         leadsVerified++;
       }

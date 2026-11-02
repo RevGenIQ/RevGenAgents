@@ -23,12 +23,10 @@ This document outlines the defensive security architecture, audit findings, and 
 
 ## 2. Super-Admin Privileges & Access Credentials
 
-Direct Super-Admin credentials are configured in `.env` and `.env.local`:
+Super-Admin credentials come only from environment variables (`ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_SECRET_KEY`, `JWT_SECRET`). There are no built-in defaults: admin login is disabled and sessions cannot be signed until they are set (secrets must be at least 32 characters). Never commit real values.
 
-- **Admin Email**: `admin@revgeniq.os`
-- **Admin Password**: `RevGen_Admin#Sec2026!Master`
+
 - **Admin Direct Link**: [`/admin`](http://localhost:3000/admin)
-- **Secret Key**: `revgeniq_super_secret_admin_key_2026_x89f_secure`
 
 ### Super Admin Privileges:
 1. **Tenant Workspace Oversight**: Inspect all registered company domains and user accounts.

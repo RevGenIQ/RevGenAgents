@@ -209,6 +209,7 @@ export async function searchCompaniesWithSignals(
       try {
         const braveUrl = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(q)}&count=6`;
         const res = await fetch(braveUrl, {
+        signal: AbortSignal.timeout(20000),
           headers: {
             Accept: "application/json",
             "X-Subscription-Token": braveKey,
@@ -245,6 +246,7 @@ export async function searchCompaniesWithSignals(
     if (urlsToExtract.length > 0) {
       try {
         const extRes = await fetch("https://api.tavily.com/extract", {
+        signal: AbortSignal.timeout(20000),
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -276,6 +278,7 @@ export async function searchCompaniesWithSignals(
       try {
         tavilyCallsCount++;
         const res = await fetch("https://api.tavily.com/search", {
+        signal: AbortSignal.timeout(20000),
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -430,6 +433,7 @@ Return strict JSON array of objects.`;
     }
   } else if (openaiKey) {
     const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+        signal: AbortSignal.timeout(20000),
       method: "POST",
       headers: {
         Authorization: `Bearer ${openaiKey}`,

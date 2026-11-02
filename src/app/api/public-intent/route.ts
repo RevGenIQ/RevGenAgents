@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { rateLimit } from "@/lib/security/rateLimit";
 
 export interface PublicIntentItem {
   id: string;
@@ -35,12 +36,17 @@ function extractXmlTag(block: string, tag: string): string {
     .trim();
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Public endpoint that fans out to three third-party feeds: throttle per IP.
+  const rl = rateLimit(request, { max: 30, windowMs: 60 * 1000, prefix: "public_intent" });
+  if (!rl.allowed && rl.response) return rl.response;
+
   const items: PublicIntentItem[] = [];
 
   // 1. Live Product Launches Feed
   try {
     const phRes = await fetch("https://www.producthunt.com/feed", {
+        signal: AbortSignal.timeout(8000),
       headers: {
         "User-Agent": "RevGenAI-IntentStream/1.0",
         Accept: "application/atom+xml,application/xml,text/xml",
@@ -98,6 +104,7 @@ export async function GET() {
     const hnRes = await fetch(
       "https://hacker-news.firebaseio.com/v0/jobstories.json",
       {
+        signal: AbortSignal.timeout(8000),
         next: { revalidate: 180 },
       }
     );
@@ -107,8 +114,7 @@ export async function GET() {
       const stories = await Promise.all(
         topIds.map(async (id) => {
           const r = await fetch(
-            `https://hacker-news.firebaseio.com/v0/item/${id}.json`
-          );
+            `https://hacker-news.firebaseio.com/v0/item/${id}.json`, { signal: AbortSignal.timeout(8000) });
           return r.ok ? r.json() : null;
         })
       );
@@ -152,6 +158,7 @@ export async function GET() {
     const devRes = await fetch(
       "https://dev.to/api/articles?tag=cloud&per_page=3",
       {
+        signal: AbortSignal.timeout(8000),
         next: { revalidate: 300 },
       }
     );

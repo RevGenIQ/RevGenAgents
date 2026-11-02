@@ -65,10 +65,10 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 DATABASE_URL=postgresql://postgres.xxx:password@aws-0-region.pooler.supabase.com:6543/postgres
 
-ADMIN_EMAIL=admin@revgeniq.os
-ADMIN_PASSWORD="RevGen_Admin#Sec2026!Master"
-ADMIN_SECRET_KEY=revgeniq_super_secret_admin_key_2026_x89f_secure
-JWT_SECRET=super_secure_jwt_random_secret_at_least_64_characters_long_2026_prod
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD="change_me_to_a_long_random_password"
+ADMIN_SECRET_KEY=generate_with_openssl_rand_hex_32_min_32_chars
+JWT_SECRET=generate_with_openssl_rand_hex_32_min_32_chars
 
 OPENAI_API_KEY=sk-...
 GEMINI_API_KEY=AIza...

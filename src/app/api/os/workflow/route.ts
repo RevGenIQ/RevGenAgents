@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/security/auth";
 import { createServerClient } from "@/lib/supabase/server";
+import { generateIdSuffix, resolvePassword } from "@/lib/security/credentials";
+import { verifyCsrfAndOrigin } from "@/lib/security/cors";
+import { rateLimit } from "@/lib/security/rateLimit";
 
 function mapDbCompanyToRecord(row: any) {
   const scoring = row.scoring_json || {
@@ -152,9 +155,74 @@ function mapDbMessageToRecord(row: any) {
   };
 }
 
+type WorkflowSession = NonNullable<ReturnType<typeof getSessionFromRequest>>;
+type ServerSupabase = ReturnType<typeof createServerClient>;
+
+/**
+ * Whether the session may act on a workspace: admins on any, humagents only on
+ * workspaces allocated to them, everyone else only on their own workspace.
+ */
+async function canAccessWorkspace(
+  supabase: ServerSupabase,
+  session: WorkflowSession,
+  workspaceId: string
+): Promise<boolean> {
+  if (!workspaceId) return false;
+  if (session.role === "admin") return true;
+  if (session.role !== "humagent") return session.workspaceId === workspaceId;
+
+  const [{ data: wsRow }, { data: humRow }] = await Promise.all([
+    supabase.from("workspaces").select("assigned_humagent_id").eq("id", workspaceId).maybeSingle(),
+    supabase.from("humagent_users").select("allocated_workspace_ids").eq("id", session.userId).maybeSingle(),
+  ]);
+  const allocatedIds: string[] = Array.isArray(humRow?.allocated_workspace_ids)
+    ? humRow.allocated_workspace_ids
+    : [];
+  return wsRow?.assigned_humagent_id === session.userId || allocatedIds.includes(workspaceId);
+}
+
+function forbidden(error: string) {
+  return NextResponse.json({ ok: false, error }, { status: 403 });
+}
+
+const MESSAGE_TYPES = new Set(["text", "google_meet", "appointment", "document", "payment"]);
+const METADATA_KEYS = [
+  "meetUrl",
+  "appointmentDate",
+  "appointmentTime",
+  "agenda",
+  "docTitle",
+  "docUrl",
+  "paymentAmount",
+  "paymentStatus",
+] as const;
+const URL_METADATA_KEYS = new Set(["meetUrl", "docUrl"]);
+
+/** Keeps only known metadata fields as short strings; URLs must be http(s). */
+function sanitizeMessageMetadata(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== "object") return {};
+  const source = raw as Record<string, unknown>;
+  return METADATA_KEYS.reduce<Record<string, string>>((acc, key) => {
+    const value = source[key];
+    if (typeof value !== "string" || !value.trim()) return acc;
+    const trimmed = value.trim().slice(0, 500);
+    if (URL_METADATA_KEYS.has(key) && !/^https?:\/\//i.test(trimmed) && /^[a-z][a-z0-9+.-]*:/i.test(trimmed)) {
+      return acc;
+    }
+    return { ...acc, [key]: trimmed };
+  }, {});
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = getSessionFromRequest(request);
+    if (!session) {
+      return NextResponse.json(
+        { ok: false, error: "Authentication required." },
+        { status: 401 }
+      );
+    }
+    const isAdmin = session.role === "admin";
     const supabase = createServerClient();
 
     const [
@@ -192,16 +260,9 @@ export async function GET(request: NextRequest) {
     const accessRequests = reqRows || [];
     const humagents = humRows || [];
 
-    // Role-based filtering
-    if (session?.role === "client") {
-      workspaces = workspaces.filter((w) => w.id === session.workspaceId);
-      accounts = accounts.filter(
-        (a) =>
-          a.workspaceId === session.workspaceId &&
-          a.stage === "published_to_client"
-      );
-      messages = messages.filter((m) => m.workspaceId === session.workspaceId);
-    } else if (session?.role === "humagent") {
+    // Role-based filtering. Only admins see every tenant; any other role is
+    // scoped down, and unknown roles get the most restrictive (client) view.
+    if (session.role === "humagent") {
       const myHum = humagents.find((h: any) => h.id === session.userId);
       const allocatedIds: string[] = Array.isArray(
         myHum?.allocated_workspace_ids
@@ -216,7 +277,27 @@ export async function GET(request: NextRequest) {
       const allowedWsIds = new Set(workspaces.map((w) => w.id));
       accounts = accounts.filter((a) => allowedWsIds.has(a.workspaceId));
       messages = messages.filter((m) => allowedWsIds.has(m.workspaceId));
+    } else if (!isAdmin) {
+      workspaces = workspaces.filter((w) => w.id === session.workspaceId);
+      accounts = accounts.filter(
+        (a) =>
+          a.workspaceId === session.workspaceId &&
+          a.stage === "published_to_client"
+      );
+      messages = messages.filter((m) => m.workspaceId === session.workspaceId);
     }
+
+    // Stored credentials are visible to the admin only.
+    if (!isAdmin) {
+      workspaces = workspaces.map((w) => ({ ...w, generatedPassword: "" }));
+    }
+    const visibleHumagents = isAdmin
+      ? humagents
+      : session.role === "humagent"
+      ? humagents
+          .filter((h: any) => h.id === session.userId)
+          .map((h: any) => ({ ...h, password_plain: "" }))
+      : [];
 
     // Extract ICP submissions from workspaces that have submitted an icpBrief
     const icpSubmissions = workspaces
@@ -233,11 +314,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       ok: true,
       workspaces,
-      accessRequests: session?.role === "admin" ? accessRequests : [],
-      humagents:
-        session?.role === "admin" || session?.role === "humagent"
-          ? humagents
-          : [],
+      accessRequests: isAdmin ? accessRequests : [],
+      humagents: visibleHumagents,
       icpSubmissions,
       accounts,
       messages,
@@ -252,6 +330,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const csrf = verifyCsrfAndOrigin(request);
+    if (!csrf.isAllowed && csrf.errorResponse) return csrf.errorResponse;
+
+    const rl = rateLimit(request, { max: 120, windowMs: 60 * 1000, prefix: "os_workflow_post" });
+    if (!rl.allowed && rl.response) return rl.response;
+
     const session = getSessionFromRequest(request);
     if (!session) {
       return NextResponse.json(
@@ -327,12 +411,10 @@ export async function POST(request: NextRequest) {
         .slice(0, 3)
         .toUpperCase()
         .padEnd(3, "X");
-      const randSuffix = Math.floor(100 + Math.random() * 900);
+      const randSuffix = generateIdSuffix();
       const generatedLoginId =
         body.customLoginId?.trim() || `${prefix}-CLIENT-${randSuffix}`;
-      const generatedPassword =
-        body.customPassword?.trim() ||
-        `${prefix}@${Math.floor(1000 + Math.random() * 9000)}#AI`;
+      const generatedPassword = resolvePassword(body.customPassword);
 
       let humName = "";
       let humEmail = "";
@@ -486,11 +568,9 @@ export async function POST(request: NextRequest) {
 
       const fullName = String(body.fullName || "").trim();
       const email = String(body.email || "").trim().toLowerCase();
-      const randNum = Math.floor(100 + Math.random() * 900);
       const loginId =
-        String(body.loginId || "").trim() || `HUM-AGENT-${randNum}`;
-      const passwordPlain =
-        String(body.password || "").trim() || `Hum@${randNum}#RevGen`;
+        String(body.loginId || "").trim() || `HUM-AGENT-${generateIdSuffix()}`;
+      const passwordPlain = resolvePassword(body.password);
       const allocatedWorkspaceIds = Array.isArray(body.allocatedWorkspaceIds)
         ? body.allocatedWorkspaceIds
         : [];
@@ -664,7 +744,7 @@ export async function POST(request: NextRequest) {
         session.role === "client" ? session.workspaceId : body.workspaceId;
       const content = String(body.content || "").trim();
       const messageType = String(body.messageType || "text");
-      const metadata = body.metadata || {};
+      const metadata = sanitizeMessageMetadata(body.metadata);
 
       if (!targetWsId || !content) {
         return NextResponse.json(
@@ -673,35 +753,15 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // If Humagent, verify they are allocated to this workspace
-      if (session.role === "humagent") {
-        const { data: wsRow } = await supabase
-          .from("workspaces")
-          .select("assigned_humagent_id")
-          .eq("id", targetWsId)
-          .single();
-        const { data: humRow } = await supabase
-          .from("humagent_users")
-          .select("allocated_workspace_ids")
-          .eq("id", session.userId)
-          .single();
-        const allocatedIds: string[] = Array.isArray(
-          humRow?.allocated_workspace_ids
-        )
-          ? humRow.allocated_workspace_ids
-          : [];
-        if (
-          wsRow?.assigned_humagent_id !== session.userId &&
-          !allocatedIds.includes(targetWsId)
-        ) {
-          return NextResponse.json(
-            {
-              ok: false,
-              error: "You are not allocated to this client workspace channel.",
-            },
-            { status: 403 }
-          );
-        }
+      if (!MESSAGE_TYPES.has(messageType) || content.length > 5000) {
+        return NextResponse.json(
+          { ok: false, error: "Unsupported message type or message too long." },
+          { status: 400 }
+        );
+      }
+
+      if (!(await canAccessWorkspace(supabase, session, targetWsId))) {
+        return forbidden("You are not allocated to this client workspace channel.");
       }
 
       const { data: insertedMsg, error: msgErr } = await supabase
@@ -736,6 +796,10 @@ export async function POST(request: NextRequest) {
       const targetWsId =
         session.role === "client" ? session.workspaceId : body.workspaceId;
       const { icpBrief, dncEntries } = body;
+
+      if (!(await canAccessWorkspace(supabase, session, String(targetWsId || "")))) {
+        return forbidden("You cannot update the ICP for this workspace.");
+      }
 
       const { error: upErr } = await supabase
         .from("workspaces")
@@ -861,21 +925,41 @@ export async function POST(request: NextRequest) {
     // 9. Humagent / Client / Admin updates an Account (Contacts enrichment, Publish to Client, Review/Export checkmarks)
     if (action === "update_account") {
       const accountObj = body.account || null;
-      const accountId = body.accountId || accountObj?.id;
+      const accountId = String(body.accountId || accountObj?.id || "");
       const updates = body.updates || accountObj || {};
+
+      const { data: existingAccount } = await supabase
+        .from("companies")
+        .select("workspace_id, delivery_stage")
+        .eq("id", accountId)
+        .maybeSingle();
+      if (!existingAccount) {
+        return NextResponse.json(
+          { ok: false, error: "Account not found." },
+          { status: 404 }
+        );
+      }
+      if (!(await canAccessWorkspace(supabase, session, existingAccount.workspace_id))) {
+        return forbidden("You cannot update accounts in this workspace.");
+      }
+
+      // Clients may only record their own review state; contacts and delivery
+      // stage are edited by the Admin and allocated Humagent. The client UI sends
+      // the whole record, so staff-only fields are ignored rather than rejected.
+      const isStaff = session.role === "admin" || session.role === "humagent";
       const dbUpdates: Record<string, any> = {
         updated_at: new Date().toISOString(),
       };
 
-      if (updates.contacts !== undefined)
+      if (isStaff && updates.contacts !== undefined)
         dbUpdates.contacts_json = updates.contacts;
-      if (updates.stage !== undefined)
+      if (isStaff && updates.stage !== undefined)
         dbUpdates.delivery_stage = updates.stage;
-      if (updates.segment !== undefined)
+      if (isStaff && updates.segment !== undefined)
         dbUpdates.segment_status = updates.segment;
-      if (updates.deliveryDayLabel !== undefined)
+      if (isStaff && updates.deliveryDayLabel !== undefined)
         dbUpdates.delivery_day_label = updates.deliveryDayLabel;
-      if (updates.checkpointsCleared !== undefined)
+      if (isStaff && updates.checkpointsCleared !== undefined)
         dbUpdates.checkpoints_cleared = updates.checkpointsCleared;
       if (updates.reviewedByClient !== undefined)
         dbUpdates.reviewed_by_client = updates.reviewedByClient;
@@ -899,7 +983,11 @@ export async function POST(request: NextRequest) {
       }
 
       // If Humagent just published this account to the client, post an update in the workspace chat channel
-      if (updates.stage === "published_to_client" && updatedRow) {
+      const justPublished =
+        isStaff &&
+        updates.stage === "published_to_client" &&
+        existingAccount.delivery_stage !== "published_to_client";
+      if (justPublished && updatedRow) {
         const contactCount = Array.isArray(updatedRow.contacts_json)
           ? updatedRow.contacts_json.length
           : 0;
