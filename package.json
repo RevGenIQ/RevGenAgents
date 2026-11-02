@@ -1,0 +1,44 @@
+{
+  "name": "revgen-iq",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "setup": "bash scripts/setup.sh",
+    "preflight": "npx -y tsx scripts/preflight.ts",
+    "import:hdl": "npx -y tsx scripts/import_hdl_xlsx.ts",
+    "unimport:hdl": "npx -y tsx scripts/unimport_hdl.ts",
+    "import:extrieve": "npx -y tsx scripts/import_extrieve_xlsx.ts",
+    "unimport:extrieve": "npx -y tsx scripts/unimport_extrieve.ts"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.117.3",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.57.0",
+    "next": "16.4.0",
+    "pg": "^8.23.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "recharts": "^3.10.1",
+    "tailwind-merge": "^3.7.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/turbopack": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.0",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  },
+  "overrides": {
+    "braces": "^3.0.3",
+    "micromatch": "^4.0.8"
+  }
+}

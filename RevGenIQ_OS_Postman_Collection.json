@@ -1,0 +1,666 @@
+{
+  "info": {
+    "name": "RevGenIQ OS - API & Workflow Collection",
+    "_postman_id": "revgeniq-os-v1-postman-collection",
+    "description": "Comprehensive Postman Collection to test RevGenIQ OS authentication, rate limiting, super-admin dashboard oversight, individual search workflow inspection, MCP credit controls, and external provider health.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "adminEmail",
+      "value": "admin@revgeniq.os",
+      "type": "string"
+    },
+    {
+      "key": "adminPassword",
+      "value": "RevGen_Admin#Sec2026!Master",
+      "type": "string"
+    },
+    {
+      "key": "workspaceId",
+      "value": "553334a9-2029-448d-8ca7-e664ff64adde",
+      "type": "string"
+    },
+    {
+      "key": "sessionToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "testRunId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Authentication & Company Security",
+      "item": [
+        {
+          "name": "Admin Login (Direct Super Admin Privileges)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('User is admin', function () {",
+                  "    pm.expect(jsonData.user.role).to.eql('admin');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\",\n  \"companyDomain\": \"revgeniq.os\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Authenticates with root Super Admin credentials defined in .env"
+          }
+        },
+        {
+          "name": "Sign Up (Company Email & Domain Validation)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Sarah Connor\",\n  \"email\": \"sarah@cyberdyne.io\",\n  \"password\": \"Enterprise#SecPass2026!\",\n  \"companyDomain\": \"cyberdyne.io\",\n  \"companyName\": \"Cyberdyne Systems\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/signup",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "signup"]
+            },
+            "description": "Validates that email is a legitimate company email (rejects consumer domains: @gmail, @yahoo) and provisions an isolated tenant workspace."
+          }
+        },
+        {
+          "name": "Verify Consumer Email Rejection (Negative Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 for consumer webmail', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Attacker\",\n  \"email\": \"hacker@gmail.com\",\n  \"password\": \"SecretPass123!\",\n  \"companyDomain\": \"gmail.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/signup",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "signup"]
+            },
+            "description": "Ensures personal webmail accounts are rejected for tenant security."
+          }
+        },
+        {
+          "name": "Get Current Session Identity",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "me"]
+            },
+            "description": "Returns current session identity, tenant workspace, and admin status from secure HTTP-only cookies."
+          }
+        },
+        {
+          "name": "Logout Session",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "logout"]
+            },
+            "description": "Safely clears session cookies."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Super Admin Dashboard Endpoints",
+      "item": [
+        {
+          "name": "Super Admin Overview & Telemetry",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/overview",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "overview"]
+            },
+            "description": "Global telemetry: active workspaces, total research runs, tokens consumed, USD cost, active agents, and blocked threats."
+          }
+        },
+        {
+          "name": "Super Admin Tenant Workspaces Directory",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "users"]
+            },
+            "description": "Lists all registered company domains, owner emails, plan tiers, and remaining credits."
+          }
+        },
+        {
+          "name": "Super Admin All Global Searches",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/runs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "runs"]
+            },
+            "description": "Lists research runs across all tenants with filter by workspace or search status."
+          }
+        },
+        {
+          "name": "Inspect Individual User Search Workflow",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/runs/{{testRunId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "runs", "{{testRunId}}"]
+            },
+            "description": "Deep-dives into an individual user's search workflow to inspect tasks, queries, discovered companies, buying signals, and exact credit expenditures."
+          }
+        },
+        {
+          "name": "Super Admin MCP & Result Credits Telemetry",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/credits",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "credits"]
+            },
+            "description": "Breakdown of MCP token and result credit consumption by provider (OpenAI, Gemini, Anthropic, Tavily, Apollo, ZeroBounce)."
+          }
+        },
+        {
+          "name": "Allocate / Top-Up Workspace Credits",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workspaceId\": \"{{workspaceId}}\",\n  \"grantCredits\": 5000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/credits",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "credits"]
+            },
+            "description": "Grants result credits to a specific tenant workspace."
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Autonomous Prospecting & Research Workflows",
+      "item": [
+        {
+          "name": "Launch Research Run",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.run && jsonData.run.id) {",
+                  "    pm.collectionVariables.set('testRunId', jsonData.run.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workspaceId\": \"{{workspaceId}}\",\n  \"name\": \"Fintech & Automotive Component Exporters\",\n  \"targetCount\": 5,\n  \"minIcpScore\": 80,\n  \"includeDm\": true,\n  \"maximizeCoverage\": true,\n  \"liveSearch\": true,\n  \"icpInput\": {\n    \"description\": \"Tier-1 automotive component manufacturers and precision engineering exporters with plant expansion in India or US.\",\n    \"website\": \"vertexauto.in\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/runs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "runs"]
+            },
+            "description": "Orchestrates multi-agent discovery (Scout -> Analyst -> Matcher -> Verifier -> Writer)."
+          }
+        },
+        {
+          "name": "List Workspace Research Runs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/runs?workspaceId={{workspaceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "runs"],
+              "query": [
+                {
+                  "key": "workspaceId",
+                  "value": "{{workspaceId}}"
+                }
+              ]
+            },
+            "description": "Lists all research runs scoped by tenant workspace."
+          }
+        },
+        {
+          "name": "Get Specific Run Details & Agent Tasks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/runs/{{testRunId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "runs", "{{testRunId}}"]
+            },
+            "description": "Returns run status, progress, discovered accounts, contacts, and task traces."
+          }
+        },
+        {
+          "name": "Parse ICP Parameters with LLM (SSRF Protected)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"websiteUrl\": \"https://stripe.com\",\n  \"description\": \"Payments infrastructure and global financial technology APIs\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/icp/parse",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "icp", "parse"]
+            },
+            "description": "Extracts structured ICP criteria with strict SSRF defense."
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Signals, Contacts & Dossiers",
+      "item": [
+        {
+          "name": "Query Verified Buying Signals",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/signals?workspaceId={{workspaceId}}&minConfidence=0.85",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "signals"],
+              "query": [
+                {
+                  "key": "workspaceId",
+                  "value": "{{workspaceId}}"
+                },
+                {
+                  "key": "minConfidence",
+                  "value": "0.85"
+                }
+              ]
+            },
+            "description": "Returns corroborated signals with event dates and evidence URLs."
+          }
+        },
+        {
+          "name": "Query Contacts (Injection-Protected)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/contacts?workspaceId={{workspaceId}}&search=Rajesh&verificationStatus=verified",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "contacts"],
+              "query": [
+                {
+                  "key": "workspaceId",
+                  "value": "{{workspaceId}}"
+                },
+                {
+                  "key": "search",
+                  "value": "Rajesh"
+                },
+                {
+                  "key": "verificationStatus",
+                  "value": "verified"
+                }
+              ]
+            },
+            "description": "Returns decision makers with sanitized search filters."
+          }
+        },
+        {
+          "name": "Query Account Dossiers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dossiers?workspaceId={{workspaceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dossiers"],
+              "query": [
+                {
+                  "key": "workspaceId",
+                  "value": "{{workspaceId}}"
+                }
+              ]
+            },
+            "description": "Returns synthesized account dossiers and talking points."
+          }
+        },
+        {
+          "name": "List Pending Approvals",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/approvals?workspaceId={{workspaceId}}&status=pending",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "approvals"],
+              "query": [
+                {
+                  "key": "workspaceId",
+                  "value": "{{workspaceId}}"
+                },
+                {
+                  "key": "status",
+                  "value": "pending"
+                }
+              ]
+            },
+            "description": "Returns items requiring human approval before draft dispatch."
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Data Ingestion, Export & System Status",
+      "item": [
+        {
+          "name": "Batch Import CSV Records (DoS Protected)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workspaceId\": \"{{workspaceId}}\",\n  \"fileName\": \"pilot_accounts.csv\",\n  \"rows\": [\n    {\n      \"companyName\": \"Acme Cloud Robotics\",\n      \"domain\": \"acmerobotics.io\",\n      \"firstName\": \"Alex\",\n      \"lastName\": \"Vance\",\n      \"title\": \"VP Engineering\",\n      \"email\": \"alex@acmerobotics.io\",\n      \"city\": \"San Francisco\",\n      \"country\": \"USA\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/import",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "import"]
+            },
+            "description": "Imports leads and company accounts with schema validation and row caps."
+          }
+        },
+        {
+          "name": "Export Verified Leads CSV (Formula-Injection Protected)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/export?workspaceId={{workspaceId}}&minScore=75",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "export"],
+              "query": [
+                {
+                  "key": "workspaceId",
+                  "value": "{{workspaceId}}"
+                },
+                {
+                  "key": "minScore",
+                  "value": "75"
+                }
+              ]
+            },
+            "description": "Exports leads as CSV escaping dangerous spreadsheet execution characters."
+          }
+        },
+        {
+          "name": "Get Audit Activity Logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/audit?workspaceId={{workspaceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audit"],
+              "query": [
+                {
+                  "key": "workspaceId",
+                  "value": "{{workspaceId}}"
+                }
+              ]
+            },
+            "description": "Returns security audit logs scoped to workspace."
+          }
+        },
+        {
+          "name": "Get Integrations & Adapters Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/integrations",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "integrations"]
+            },
+            "description": "Returns live connectivity status of LLM, search, enrichment, and verification providers."
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Direct External Provider Checks",
+      "item": [
+        {
+          "name": "Direct Check: OpenAI API",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{OPENAI_API_KEY}}"
+              }
+            ],
+            "url": {
+              "raw": "https://api.openai.com/v1/models",
+              "protocol": "https",
+              "host": ["api", "openai", "com"],
+              "path": ["v1", "models"]
+            }
+          }
+        },
+        {
+          "name": "Direct Check: Google Gemini API",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "https://generativelanguage.googleapis.com/v1beta/models?key={{GEMINI_API_KEY}}",
+              "protocol": "https",
+              "host": ["generativelanguage", "googleapis", "com"],
+              "path": ["v1beta", "models"],
+              "query": [
+                {
+                  "key": "key",
+                  "value": "{{GEMINI_API_KEY}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Direct Check: Tavily AI Search",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"api_key\": \"{{TAVILY_API_KEY}}\",\n  \"query\": \"enterprise SaaS growth funding\",\n  \"max_results\": 2\n}"
+            },
+            "url": {
+              "raw": "https://api.tavily.com/search",
+              "protocol": "https",
+              "host": ["api", "tavily", "com"],
+              "path": ["search"]
+            }
+          }
+        },
+        {
+          "name": "Direct Check: Serper Google API",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-KEY",
+                "value": "{{SERPER_API_KEY}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"q\": \"Vertex Auto Components Ltd executive\",\n  \"num\": 2\n}"
+            },
+            "url": {
+              "raw": "https://google.serper.dev/search",
+              "protocol": "https",
+              "host": ["google", "serper", "dev"],
+              "path": ["search"]
+            }
+          }
+        },
+        {
+          "name": "Direct Check: Apollo.io API",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Api-Key",
+                "value": "{{APOLLO_API_KEY}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://api.apollo.io/v1/auth/health",
+              "protocol": "https",
+              "host": ["api", "apollo", "io"],
+              "path": ["v1", "auth", "health"]
+            }
+          }
+        },
+        {
+          "name": "Direct Check: ZeroBounce Mailbox Verifier",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "https://api.zerobounce.net/v2/getcredits?api_key={{ZEROBOUNCE_API_KEY}}",
+              "protocol": "https",
+              "host": ["api", "zerobounce", "net"],
+              "path": ["v2", "getcredits"],
+              "query": [
+                {
+                  "key": "api_key",
+                  "value": "{{ZEROBOUNCE_API_KEY}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
