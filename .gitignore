@@ -56,3 +56,10 @@ LANDING_CODE_EXPORT.md
 .temp/
 supabase/.temp/
 
+
+# graphify knowledge graph (rebuild with: graphify update .)
+graphify-out/
+
+# strix security scan output
+strix_runs/
+agent_runs/
