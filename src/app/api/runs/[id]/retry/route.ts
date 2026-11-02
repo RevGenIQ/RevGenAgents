@@ -1,6 +1,8 @@
 import { after, NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { executeResearchRun } from "@/lib/engine/researchRunner";
+import { isLangGraphEngine, startProspectingRun } from "@/lib/agents";
+import { driveRun } from "@/lib/agents/continuation";
 import { getSessionFromRequest, verifyWorkspaceAccess } from "@/lib/security/auth";
 import { verifyCsrfAndOrigin } from "@/lib/security/cors";
 import { isValidUUID } from "@/lib/security/validator";
@@ -68,7 +70,12 @@ export async function POST(
     // (up to maxDuration); a detached promise would be frozen after the response.
     after(async () => {
       try {
-        await executeResearchRun(id);
+        // AGENT_ENGINE=langgraph runs the checkpointed ProspectingGraph; otherwise the legacy runner.
+        if (isLangGraphEngine()) {
+          await driveRun(id, () => startProspectingRun(id));
+        } else {
+          await executeResearchRun(id);
+        }
       } catch (e) {
         console.error("Retry run error:", e);
       }

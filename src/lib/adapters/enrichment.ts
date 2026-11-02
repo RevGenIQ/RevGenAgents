@@ -18,6 +18,8 @@ export interface EnrichedContactCandidate {
   roleStartDate: string;
   currentRoleConfirmed: boolean;
   employmentEvidenceNote: string;
+  /** Where workEmail came from: returned by a provider, guessed from a name pattern, or a role-inbox placeholder. */
+  emailSource: "provider" | "pattern_guess" | "placeholder";
 }
 
 export async function enrichDecisionMaker(
@@ -70,6 +72,7 @@ export async function enrichDecisionMaker(
             currentRoleConfirmed: true,
             employmentEvidenceNote:
               "Corroborated via live Apollo Enterprise directory API.",
+            emailSource: person.email ? "provider" : "pattern_guess",
           };
         }
       }
@@ -197,6 +200,7 @@ export async function enrichDecisionMaker(
             // is a guessed first.last pattern: both need human verification.
             currentRoleConfirmed: false,
             employmentEvidenceNote: `Found via LinkedIn search result (unconfirmed; email address pattern guessed): "${topProfile.snippet?.slice(0, 160)}..."`,
+            emailSource: "pattern_guess",
           };
         }
       }
@@ -220,5 +224,6 @@ export async function enrichDecisionMaker(
     roleStartDate: "",
     currentRoleConfirmed: false,
     employmentEvidenceNote: `PLACEHOLDER: no named decision maker found for ${companyName}. Generic role inbox only; needs human research.`,
+    emailSource: "placeholder",
   };
 }

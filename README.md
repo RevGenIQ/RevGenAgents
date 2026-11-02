@@ -67,8 +67,8 @@ DATABASE_URL=postgresql://postgres.xxx:password@aws-0-region.pooler.supabase.com
 
 ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD="change_me_to_a_long_random_password"
-ADMIN_SECRET_KEY=generate_with_openssl_rand_hex_32_min_32_chars
-JWT_SECRET=generate_with_openssl_rand_hex_32_min_32_chars
+ADMIN_SECRET_KEY=CHANGE_ME_openssl_rand_hex_32
+JWT_SECRET=CHANGE_ME_openssl_rand_hex_32
 
 OPENAI_API_KEY=sk-...
 GEMINI_API_KEY=AIza...

@@ -4,6 +4,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { generateIdSuffix, resolvePassword } from "@/lib/security/credentials";
 import { verifyCsrfAndOrigin } from "@/lib/security/cors";
 import { rateLimit } from "@/lib/security/rateLimit";
+import { canAccessWorkspace } from "@/lib/security/workspaceAccess";
 
 function mapDbCompanyToRecord(row: any) {
   const scoring = row.scoring_json || {
@@ -153,32 +154,6 @@ function mapDbMessageToRecord(row: any) {
     metadata: row.metadata || {},
     createdAt: row.created_at || new Date().toISOString(),
   };
-}
-
-type WorkflowSession = NonNullable<ReturnType<typeof getSessionFromRequest>>;
-type ServerSupabase = ReturnType<typeof createServerClient>;
-
-/**
- * Whether the session may act on a workspace: admins on any, humagents only on
- * workspaces allocated to them, everyone else only on their own workspace.
- */
-async function canAccessWorkspace(
-  supabase: ServerSupabase,
-  session: WorkflowSession,
-  workspaceId: string
-): Promise<boolean> {
-  if (!workspaceId) return false;
-  if (session.role === "admin") return true;
-  if (session.role !== "humagent") return session.workspaceId === workspaceId;
-
-  const [{ data: wsRow }, { data: humRow }] = await Promise.all([
-    supabase.from("workspaces").select("assigned_humagent_id").eq("id", workspaceId).maybeSingle(),
-    supabase.from("humagent_users").select("allocated_workspace_ids").eq("id", session.userId).maybeSingle(),
-  ]);
-  const allocatedIds: string[] = Array.isArray(humRow?.allocated_workspace_ids)
-    ? humRow.allocated_workspace_ids
-    : [];
-  return wsRow?.assigned_humagent_id === session.userId || allocatedIds.includes(workspaceId);
 }
 
 function forbidden(error: string) {
