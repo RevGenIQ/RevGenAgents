@@ -11,5 +11,33 @@
   "enabledPlugins": {
     "example-skills@anthropic-agent-skills": true,
     "document-skills@anthropic-agent-skills": true
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/require-development-branch.mjs\"",
+            "timeout": 15,
+            "statusMessage": "Checking commit branch"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/typecheck-after-edit.mjs\"",
+            "timeout": 180,
+            "asyncRewake": true
+          }
+        ]
+      }
+    ]
   }
 }
