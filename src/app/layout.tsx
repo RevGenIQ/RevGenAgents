@@ -1,20 +1,10 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { plusJakarta, geistSans, geistMono } from "@/app/fonts";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ui/ThemeToggle";
 import { AuthProvider } from "@/context/AuthContext";
 import { AuthModal } from "@/components/auth/AuthModal";
 import { IntroSplash } from "@/components/ui/IntroSplash";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: "RevGen AI — AI Revenue Operating System",
@@ -38,7 +28,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${plusJakarta.variable} ${plusJakarta.className} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>

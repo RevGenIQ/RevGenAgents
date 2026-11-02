@@ -43,14 +43,6 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   // Prevent exposing client-side source maps in production builds
   productionBrowserSourceMaps: false,
-  turbopack: {
-    rules: {
-      "*.css": {
-        loaders: ["@tailwindcss/turbopack"],
-        as: "*.css",
-      },
-    },
-  },
   async headers() {
     return [
       {

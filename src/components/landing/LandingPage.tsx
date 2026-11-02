@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { plusJakarta } from "@/app/fonts";
 import { RevGenLogo } from "@/components/ui/RevGenLogo";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -18,12 +18,6 @@ import {
   ExternalLink,
   RefreshCw,
 } from "lucide-react";
-
-const plusJakarta = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  display: "swap",
-});
 
 interface LandingPageProps {
   onEnterApp: () => void;
