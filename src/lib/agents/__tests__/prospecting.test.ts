@@ -107,6 +107,31 @@ describe("ProspectingGraph", () => {
     expect(state.companies.size).toBe(1);
   });
 
+  it("marks the run failed, not completed, when an LLM provider error leaves nothing researched", async () => {
+    const { graph, tools, state } = setup();
+    tools.llmMock.mockImplementation(async () => ({
+      ok: false as const,
+      error: { code: "HTTP_ERROR" as const, message: "OpenAI HTTP 429: no credits remaining" },
+      usage: [],
+    }));
+    await graph.invoke({ runId: RUN_ID }, thread());
+
+    const last = state.runPatches[state.runPatches.length - 1];
+    expect(last.status).toBe("failed");
+    expect(String(last.error_message)).toContain("429");
+    expect(String(last.current_step)).toContain("Run failed");
+  });
+
+  it("stays completed when search works but finds no companies", async () => {
+    const { graph, tools, state } = setup();
+    tools.search.mockImplementation(async () => ({ ok: true as const, value: [], usage: [] }));
+    await graph.invoke({ runId: RUN_ID }, thread());
+
+    const last = state.runPatches[state.runPatches.length - 1];
+    expect(last.status).toBe("completed");
+    expect(last.error_message).toBeNull();
+  });
+
   it("stops with a reason when the run budget is exceeded", async () => {
     const { graph, state, tools } = setup({}, 5, 0.01);
     await graph.invoke({ runId: RUN_ID }, thread());

@@ -7,6 +7,7 @@ import { interrupt } from "@langchain/langgraph";
 import type { AgentDeps } from "../deps";
 import type { ProspectingStateType, ProspectingUpdate } from "../state";
 import { reviewResumeSchema, type ReviewCard, type ReviewRequest, AWAITING_REVIEW_PREFIX } from "../types";
+import { DISCOVERY_EMPTY_NOTE } from "./discovery";
 import { budgetExceededReason, errorMessage, reportProgress, stopRequested, summariseUsage, totalCost } from "./guards";
 
 export function reviewCards(state: ProspectingStateType): ReviewCard[] {
@@ -123,20 +124,26 @@ export function createFinalize(deps: AgentDeps) {
   return async function finalize(state: ProspectingStateType): Promise<ProspectingUpdate> {
     const { found, verified } = counts(state);
     const published = state.publishedIds.length;
+    // Nothing researched because a provider failed is a failed run, not an honest
+    // "no account met the bar"; an empty-but-successful search stays completed.
+    const failures = state.errors.filter((e) => e !== DISCOVERY_EMPTY_NOTE);
+    const failed = !state.stopped && found === 0 && failures.length > 0;
     const step = state.stopped
       ? `${state.stopReason} Retained ${found} researched account cards.`
+      : failed
+      ? `Run failed before any account could be researched: ${failures[0].slice(0, 240)}`
       : found === 0
       ? "No account met the evidence and fit bar in this run, so nothing was delivered."
       : `Run complete: ${published} of ${found} cards published after Humagent review (${verified} with verified contacts).`;
 
     await deps.repo.updateRun(state.runId, {
-      status: state.stopped ? "stopped" : "completed",
+      status: state.stopped ? "stopped" : failed ? "failed" : "completed",
       current_step: step,
       progress_percent: 100,
       leads_found: found,
       leads_verified: verified,
       completed_at: deps.now().toISOString(),
-      error_message: state.stopped ? state.stopReason : null,
+      error_message: state.stopped ? state.stopReason : failed ? failures.slice(0, 3).join(" | ").slice(0, 1000) : null,
     });
 
     const usageRows = summariseUsage(state.usage).map((u) => ({
@@ -158,7 +165,7 @@ export function createFinalize(deps: AgentDeps) {
       await deps.repo.insertAuditLog({
         workspaceId: state.workspaceId,
         actorEmail: "system@revgeniq.os",
-        action: state.stopped ? "run_stopped" : "run_completed",
+        action: state.stopped ? "run_stopped" : failed ? "run_failed" : "run_completed",
         targetType: "research_run",
         targetId: state.runId,
         details: {

@@ -11,6 +11,9 @@ import type { CandidateCompany, SourceSnippet, UsageEntry } from "../types";
 import { isGenericHost, matchesDomain, normalizeDomain } from "./domains";
 import { finishTask, reportProgress, startTask } from "./guards";
 
+/** Informational note when search worked but found nothing; not a failure. */
+export const DISCOVERY_EMPTY_NOTE = "Discovery returned no search results.";
+
 const MAX_HITS_FOR_LLM = 40;
 const MAX_CANDIDATES = 25;
 
@@ -80,7 +83,7 @@ export function createDiscoverCompanies(deps: AgentDeps) {
     const hitsByUrl = new Map(hits.map((h) => [h.url, h] as const));
     if (hitsByUrl.size === 0) {
       await finishTask(deps, taskId, "completed", { candidatesDiscovered: 0, errors });
-      return { candidates: [], usage, errors: [...errors, "Discovery returned no search results."] };
+      return { candidates: [], usage, errors: [...errors, DISCOVERY_EMPTY_NOTE] };
     }
 
     const evidence = [...hitsByUrl.values()].slice(0, MAX_HITS_FOR_LLM).map((h) => ({

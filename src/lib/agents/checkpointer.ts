@@ -21,7 +21,11 @@ async function createCheckpointer(): Promise<BaseCheckpointSaver> {
     logger.warn("DATABASE_URL is not set: using in-memory LangGraph checkpoints (development only; runs cannot resume after a restart).");
     return new MemorySaver();
   }
-  const saver = PostgresSaver.fromConnString(url);
+  // A dedicated schema keeps checkpoints (which hold run state and contact data)
+  // out of `public`, the schema Supabase's REST API exposes to the anon key.
+  const saver = PostgresSaver.fromConnString(url, {
+    schema: (process.env.AGENT_CHECKPOINT_SCHEMA || "langgraph").trim(),
+  });
   await saver.setup();
   return saver;
 }
