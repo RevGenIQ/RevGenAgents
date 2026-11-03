@@ -44,3 +44,14 @@ export async function listAccessibleWorkspaceIds(
     : [];
   return Array.from(new Set([...(assigned || []).map((w: { id: string }) => w.id), ...allocatedIds]));
 }
+
+/**
+ * True when a client session belongs to a suspended workspace. Sessions live for
+ * days, so suspension is re-checked on each request rather than only at sign-in.
+ * Staff sessions are never suspended here.
+ */
+export async function isSuspendedClient(supabase: SupabaseClient, session: UserSession): Promise<boolean> {
+  if (session.role === "admin" || session.role === "humagent") return false;
+  const { data } = await supabase.from("workspaces").select("plan").eq("id", session.workspaceId).maybeSingle();
+  return data?.plan === "suspended";
+}

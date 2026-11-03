@@ -224,15 +224,18 @@ body {
    CLEAN ENTERPRISE BUTTON SYSTEM (NO POPPING / NO JUMPING / NO VIBE-CODE)
 ══════════════════════════════════════════════════════════════════════ */
 
-/* Clean, standard interactive transition for all buttons without jarring pop/scale */
-button:not(:disabled),
-a.btn-primary,
-a.btn-secondary,
-[role="button"] {
-  position: relative;
-  user-select: none;
-  -webkit-user-select: none;
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+/* Clean, standard interactive transition for all buttons without jarring pop/scale.
+   In the base layer so utilities such as `absolute` can still position a button. */
+@layer base {
+  button:not(:disabled),
+  a.btn-primary,
+  a.btn-secondary,
+  [role="button"] {
+    position: relative;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  }
 }
 
 /* ── Primary Enterprise Button ── */

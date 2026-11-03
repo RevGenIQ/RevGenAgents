@@ -1,8 +1,8 @@
 import { AuthSplitView } from "@/components/auth/AuthSplitView";
 
 export const metadata = {
-  title: "Sign in — RevGen AI",
-  description: "Sign in to your RevGen AI portal with your authorized credentials.",
+  title: "Sign in — RevGen IQ",
+  description: "Sign in to your RevGen IQ workspace.",
 };
 
 export default function LoginPage() {

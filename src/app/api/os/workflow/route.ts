@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSessionFromRequest } from "@/lib/security/auth";
+import { getSessionFromRequest, UUID_PATTERN } from "@/lib/security/auth";
 import { createServerClient } from "@/lib/supabase/server";
 import { generateIdSuffix, resolvePassword } from "@/lib/security/credentials";
 import { verifyCsrfAndOrigin } from "@/lib/security/cors";
 import { rateLimit } from "@/lib/security/rateLimit";
-import { canAccessWorkspace } from "@/lib/security/workspaceAccess";
+import { canAccessWorkspace, isSuspendedClient } from "@/lib/security/workspaceAccess";
 
 function mapDbCompanyToRecord(row: any) {
   const scoring = row.scoring_json || {
@@ -105,6 +105,9 @@ function mapDbCompanyToRecord(row: any) {
   };
 }
 
+const CLIENT_TIERS = ["trial", "premium", "suspended"] as const;
+type ClientTier = (typeof CLIENT_TIERS)[number];
+
 function mapDbWorkspaceToRecord(ws: any) {
   const defaultChannel = `RevGenAIx${String(ws.name || "Client").replace(
     /[^a-zA-Z0-9]/g,
@@ -132,6 +135,10 @@ function mapDbWorkspaceToRecord(ws: any) {
     activeTalkyRoomUrl: "",
     icpBrief: ws.icp_brief || null,
     dncEntries: Array.isArray(ws.dnc_entries) ? ws.dnc_entries : [],
+    tier: (CLIENT_TIERS as readonly string[]).includes(ws.plan) ? (ws.plan as ClientTier) : "trial",
+    sampleStatus: ws.sample_status || "not_claimed",
+    sampleRunId: ws.sample_run_id || null,
+    registeredVia: ws.registered_via === "self" ? "self" : "admin",
   };
 }
 
@@ -199,6 +206,9 @@ export async function GET(request: NextRequest) {
     }
     const isAdmin = session.role === "admin";
     const supabase = createServerClient();
+    if (await isSuspendedClient(supabase, session)) {
+      return NextResponse.json({ ok: false, error: "This workspace is suspended." }, { status: 403 });
+    }
 
     const [
       { data: wsRows },
@@ -322,6 +332,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const { action } = body;
     const supabase = createServerClient();
+    if (await isSuspendedClient(supabase, session)) {
+      return NextResponse.json({ ok: false, error: "This workspace is suspended." }, { status: 403 });
+    }
 
     // 1. Admin approves a Client Access Request OR creates a Client directly
     if (
@@ -592,6 +605,41 @@ export async function POST(request: NextRequest) {
     }
 
     // 4. Admin allocates a Humagent to a Client Workspace
+    if (action === "set_client_plan") {
+      if (session.role !== "admin") {
+        return NextResponse.json({ ok: false, error: "Only the Admin can change a client's plan." }, { status: 403 });
+      }
+      const workspaceId = String(body.workspaceId || "");
+      const tier = String(body.tier || "");
+      if (!UUID_PATTERN.test(workspaceId) || !(CLIENT_TIERS as readonly string[]).includes(tier)) {
+        return NextResponse.json({ ok: false, error: "A workspace and a plan (trial, premium or suspended) are required." }, { status: 400 });
+      }
+      const { data: updated, error: planErr } = await supabase
+        .from("workspaces")
+        .update({ plan: tier, updated_at: new Date().toISOString() })
+        .eq("id", workspaceId)
+        .select("id, name")
+        .maybeSingle();
+      if (planErr) return NextResponse.json({ ok: false, error: planErr.message }, { status: 500 });
+      if (!updated) return NextResponse.json({ ok: false, error: "Workspace not found." }, { status: 404 });
+
+      const notice: Record<string, string> = {
+        premium: "Your workspace is now on the Premium plan. Request more leads any time from the dashboard or here in the channel.",
+        trial: "Your workspace is on the free trial plan.",
+        suspended: "This workspace has been suspended. Please contact RevGen IQ support.",
+      };
+      const { error: noteErr } = await supabase.from("workspace_messages").insert({
+        workspace_id: workspaceId,
+        sender_role: "system",
+        sender_name: "RevGen IQ",
+        message_type: "system",
+        content: notice[tier],
+        metadata: { event: "plan_changed", tier },
+      });
+      if (noteErr) console.error("Plan change message failed", noteErr.message);
+      return NextResponse.json({ ok: true, workspaceId, tier });
+    }
+
     if (action === "allocate_humagent") {
       if (session.role !== "admin") {
         return NextResponse.json(

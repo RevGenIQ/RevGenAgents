@@ -1,12 +1,17 @@
 import { NextRequest } from "next/server";
 import { getSessionFromRequest } from "@/lib/security/auth";
 import { apiError, apiSuccess } from "@/lib/api/response";
+import { createServerClient } from "@/lib/supabase/server";
+import { isSuspendedClient } from "@/lib/security/workspaceAccess";
 
 export async function GET(request: NextRequest) {
   const session = getSessionFromRequest(request);
 
   if (!session) {
     return apiError("Not authenticated", 401, "UNAUTHENTICATED");
+  }
+  if (await isSuspendedClient(createServerClient(), session)) {
+    return apiError("This workspace is suspended.", 403, "ACCOUNT_SUSPENDED");
   }
 
   return apiSuccess({

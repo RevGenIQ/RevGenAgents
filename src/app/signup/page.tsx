@@ -1,8 +1,8 @@
 import { AuthSplitView } from "@/components/auth/AuthSplitView";
 
 export const metadata = {
-  title: "Request Client Access — RevGen AI",
-  description: "Request client workspace access to RevGen AI.",
+  title: "Create your workspace — RevGen IQ",
+  description: "Create a RevGen IQ workspace and claim 5 free sample accounts researched for your ICP.",
 };
 
 export default function SignupPage() {

@@ -16,6 +16,16 @@ export interface UserProfile {
   loginId?: string;
 }
 
+export interface SignupPayload {
+  fullName: string;
+  email: string;
+  password: string;
+  companyName: string;
+  companyDomain?: string;
+  jobTitle?: string;
+  phone?: string;
+}
+
 interface AuthContextType {
   user: UserProfile | null;
   isLoading: boolean;
@@ -32,19 +42,8 @@ interface AuthContextType {
     password: string,
     companyDomain?: string
   ) => Promise<{ success: boolean; error?: string; redirectUrl?: string }>;
-  signup: (payload: {
-    fullName: string;
-    email: string;
-    password?: string;
-    companyDomain: string;
-    companyName: string;
-    jobTitle?: string;
-    phone?: string;
-    prospectingGoal?: string;
-  }) => Promise<{
+  signup: (payload: SignupPayload) => Promise<{
     success: boolean;
-    pendingApproval?: boolean;
-    message?: string;
     error?: string;
     redirectUrl?: string;
   }>;
@@ -145,16 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signup = async (payload: {
-    fullName: string;
-    email: string;
-    password?: string;
-    companyDomain: string;
-    companyName: string;
-    jobTitle?: string;
-    phone?: string;
-    prospectingGoal?: string;
-  }) => {
+  const signup = async (payload: SignupPayload) => {
     try {
       const res = await fetch("/api/auth/signup", {
         method: "POST",
@@ -162,24 +152,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         credentials: "include",
         body: JSON.stringify(payload),
       });
-
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        return {
-          success: false,
-          error: data.error || data.message || "Request submission failed",
-        };
+        return { success: false, error: data.error || data.message || "Registration failed" };
       }
-
-      return {
-        success: true,
-        pendingApproval: true,
-        message:
-          data.message ||
-          "Your request has been sent to the Admin. Once approved, your generated Login ID & Password will be sent to your email.",
-      };
-    } catch (e: any) {
-      return { success: false, error: e.message || "Network error" };
+      // The server set the session cookie: the client is signed in straight away.
+      setUser(data.user);
+      setOperatingRoleState(toOperatingRole(data.user?.role));
+      setIsAuthModalOpen(false);
+      await syncWorkflowFromDatabase();
+      return { success: true, redirectUrl: data.redirectUrl };
+    } catch (e: unknown) {
+      return { success: false, error: e instanceof Error ? e.message : "Network error" };
     }
   };
 

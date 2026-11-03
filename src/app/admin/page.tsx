@@ -42,7 +42,22 @@ import {
   getHumagentsStore,
   renameWorkspaceChannel,
   syncWorkflowFromDatabase,
+  type ClientTier,
+  type SampleStatus,
 } from "@/lib/store/osWorkflowStore";
+
+const TIER_LABEL: Record<ClientTier, string> = { trial: "Free trial", premium: "Premium", suspended: "Suspended" };
+const TIER_BADGE: Record<ClientTier, string> = {
+  trial: "bg-amber-100 text-amber-800",
+  premium: "bg-emerald-100 text-emerald-800",
+  suspended: "bg-rose-100 text-rose-800",
+};
+const SAMPLE_LABEL: Record<SampleStatus, string> = {
+  not_claimed: "not claimed",
+  icp_pending: "ICP in progress",
+  running: "researching",
+  delivered: "delivered",
+};
 
 export default function AdminMiddlewarePage() {
   const router = useRouter();
@@ -313,6 +328,28 @@ export default function AdminMiddlewarePage() {
         loadFromStore();
         notify("Updated Humagent allocation for client workspace.");
       }
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleSetClientPlan = async (workspaceId: string, tier: ClientTier) => {
+    if (tier === "suspended" && !window.confirm("Suspend this client? They will not be able to sign in.")) return;
+    setIsBusy(true);
+    try {
+      const res = await fetch("/api/os/workflow", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_client_plan", workspaceId, tier }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        notify(json.error || "Could not change the plan.");
+        return;
+      }
+      await syncWorkflowFromDatabase();
+      loadFromStore();
+      notify(`Plan changed to ${TIER_LABEL[tier]}.`);
     } finally {
       setIsBusy(false);
     }
@@ -985,9 +1022,17 @@ export default function AdminMiddlewarePage() {
                                 <span className="text-xs font-mono text-indigo-600 font-bold">
                                   @{ws.companyDomain}
                                 </span>
-                                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-mono text-[10px] font-bold">
-                                  {ws.status}
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${TIER_BADGE[ws.tier || "trial"]}`}>
+                                  {TIER_LABEL[ws.tier || "trial"]}
                                 </span>
+                                <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-semibold">
+                                  Sample: {SAMPLE_LABEL[ws.sampleStatus || "not_claimed"]}
+                                </span>
+                                {ws.registeredVia === "self" && (
+                                  <span className="px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 text-[10px] font-semibold">
+                                    Self-registered
+                                  </span>
+                                )}
                               </div>
                               {primarySpokesperson && (
                                 <div className="text-xs text-slate-600 mt-0.5">
@@ -1035,7 +1080,12 @@ export default function AdminMiddlewarePage() {
                             </div>
                           </div>
 
-                          {/* Credentials Box */}
+                          {/* Credentials Box: self-registered clients chose their own password, which is stored hashed. */}
+                          {ws.registeredVia === "self" ? (
+                            <div className="p-3 rounded-xl bg-white border border-slate-200 text-xs text-slate-600">
+                              Signs in with <span className="font-semibold text-slate-900">{ws.primaryEmail}</span> and their own password.
+                            </div>
+                          ) : (
                           <div className="p-3 rounded-xl bg-white border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
                             <div>
                               <span className="text-[10px] uppercase text-slate-400 block">
@@ -1086,9 +1136,10 @@ export default function AdminMiddlewarePage() {
                               </button>
                             </div>
                           </div>
+                          )}
 
-                          {/* Channel Name & Humagent Allocation Row */}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                          {/* Channel Name, Humagent Allocation & Plan Row */}
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
                             {/* Admin-Only Channel Name Control */}
                             <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between gap-2 text-xs">
                               <span className="text-[10px] font-mono uppercase text-slate-500 font-bold shrink-0">
@@ -1163,6 +1214,24 @@ export default function AdminMiddlewarePage() {
                                     {h.full_name} ({h.login_id})
                                   </option>
                                 ))}
+                              </select>
+                            </div>
+
+                            {/* Plan control: Premium is set here after payment is received. */}
+                            <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between gap-2 text-xs">
+                              <label htmlFor={`plan-${ws.id}`} className="text-[10px] font-mono uppercase text-slate-500 font-bold shrink-0">
+                                Plan:
+                              </label>
+                              <select
+                                id={`plan-${ws.id}`}
+                                value={ws.tier || "trial"}
+                                disabled={isBusy}
+                                onChange={(e) => handleSetClientPlan(ws.id, e.target.value as ClientTier)}
+                                className="px-2 py-1 rounded border border-slate-300 text-xs font-semibold text-slate-900 bg-slate-50"
+                              >
+                                <option value="trial">Free trial</option>
+                                <option value="premium">Premium</option>
+                                <option value="suspended">Suspended</option>
                               </select>
                             </div>
                           </div>

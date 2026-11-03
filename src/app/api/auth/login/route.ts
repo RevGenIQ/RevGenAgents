@@ -8,6 +8,7 @@ import {
 import { apiError, apiSuccess } from "@/lib/api/response";
 import { createServerClient } from "@/lib/supabase/server";
 import { rateLimit } from "@/lib/security/rateLimit";
+import { verifyPassword } from "@/lib/security/credentials";
 
 export async function POST(request: NextRequest) {
   try {
@@ -156,16 +157,20 @@ export async function POST(request: NextRequest) {
         (sp: any) => String(sp.email || "").toLowerCase() === trimmedIdLower
       );
 
-      const passwordMatches = timingSafeCompare(
-        String(ws.generated_password || ""),
-        trimmedPassword
-      );
+      // Self-registered clients have a scrypt hash; admin-created ones a generated password.
+      const passwordMatches = ws.password_hash
+        ? verifyPassword(trimmedPassword, ws.password_hash)
+        : timingSafeCompare(String(ws.generated_password || ""), trimmedPassword);
 
       return (
         passwordMatches &&
         (genIdMatch || primaryEmailMatch || spokespersonEmailMatch)
       );
     });
+
+    if (matchedWorkspace && matchedWorkspace.plan === "suspended") {
+      return apiError("This workspace is suspended. Please contact RevGen IQ support.", 403, "ACCOUNT_SUSPENDED");
+    }
 
     if (matchedWorkspace) {
       let spokespersonName = matchedWorkspace.name + " Spokesperson";
@@ -244,9 +249,9 @@ export async function POST(request: NextRequest) {
     }
 
     return apiError(
-      "Access Denied. Only Clients and Humagents created or approved by the Admin can log in. If you are a new client, please submit the 'Request Client Access' registration form first.",
-      403,
-      "UNAUTHORIZED_CLIENT"
+      "Email or password is incorrect. New to RevGen IQ? Create your workspace to claim 5 free sample accounts.",
+      401,
+      "INVALID_CREDENTIALS"
     );
   } catch (err: unknown) {
     return apiError(

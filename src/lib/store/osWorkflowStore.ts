@@ -93,7 +93,15 @@ export interface ClientCompanyWorkspace {
   activeTalkyRoomId: string;
   activeTalkyRoomUrl: string;
   talkyUpdatedAt?: string;
+  /** Billing tier: trial gets one free sample run; premium is set by the Admin after payment. */
+  tier?: ClientTier;
+  sampleStatus?: SampleStatus;
+  sampleRunId?: string | null;
+  registeredVia?: "self" | "admin";
 }
+
+export type ClientTier = "trial" | "premium" | "suspended";
+export type SampleStatus = "not_claimed" | "icp_pending" | "running" | "delivered";
 
 export interface ClientIcpSubmission {
   id: string;

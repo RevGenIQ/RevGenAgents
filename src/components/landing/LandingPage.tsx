@@ -196,7 +196,7 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
             </a>
           </nav>
 
-          {/* Right: Sign in + Request Access */}
+          {/* Right: Sign in + Get free samples */}
           <div className="flex items-center gap-3 sm:gap-4">
             {isAuthenticated ? (
               <button
@@ -219,7 +219,7 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
                   href="/signup"
                   className="bg-[#5B4BFF] hover:bg-[#4F40E5] text-white text-xs px-4.5 py-2.5 rounded-xl font-semibold shadow-[0_4px_14px_rgba(91,75,255,0.39)] transition-all hover:-translate-y-0.5 active:translate-y-0"
                 >
-                  Request Access
+                  Get 5 free samples
                 </Link>
               </>
             )}
@@ -270,7 +270,7 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
                 onClick={() => setMobileMenuOpen(false)}
                 className="text-center py-2.5 rounded-lg bg-[#5B4BFF] text-white font-semibold shadow-lg shadow-[#5B4BFF]/30"
               >
-                Request Access
+                Get 5 free samples
               </Link>
             </div>
           </div>
@@ -318,7 +318,7 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
                     href="/signup"
                     className="inline-flex items-center gap-2 bg-[#5B4BFF] hover:bg-[#4F40E5] text-white text-sm px-6 py-3 rounded-xl font-semibold shadow-[0_8px_24px_rgba(91,75,255,0.45)] transition-all hover:-translate-y-0.5"
                   >
-                    Request Access
+                    Get 5 free samples
                     <ArrowRight className="w-4 h-4" />
                   </Link>
                   <Link
@@ -373,7 +373,7 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
                   href="/signup"
                   className="border border-white/20 hover:border-white/40 bg-white/[0.05] hover:bg-white/[0.1] text-white text-xs sm:text-sm py-3 px-5 rounded-xl font-semibold transition-all hover:-translate-y-0.5 active:translate-y-0"
                 >
-                  Request Client Access
+                  Get 5 free sample accounts
                 </Link>
               </div>
 

@@ -148,7 +148,7 @@ export function generateTenantWorkspaceId(domain: string): string {
  */
 export const DEMO_WORKSPACE_ID = "298c3a99-c53a-4493-acd5-1eb2964b2e6c";
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function verifyWorkspaceAccess(
   session: UserSession | null,
