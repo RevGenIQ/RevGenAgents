@@ -10,6 +10,7 @@ import { IcpGrowthInputs } from "@/components/modules/IcpGrowthInputs";
 import { AccountsContacts } from "@/components/modules/AccountsContacts";
 import { AccountDossierDrawer } from "@/components/modules/AccountDossierDrawer";
 import { SampleWorkspace } from "@/components/samples/SampleWorkspace";
+import { EnrichmentPanel } from "@/components/enrichment/EnrichmentPanel";
 import { WorkspaceChannelHub } from "@/components/modules/WorkspaceChannelHub";
 import { LandingPage } from "@/components/landing/LandingPage";
 import { CompanyFavicon } from "@/components/ui/CompanyFavicon";
@@ -217,6 +218,7 @@ export default function App() {
                 <SampleWorkspace
                   workspaceId={activeWorkspaceId}
                   onOpenChannel={() => setActiveNav("workspace_channel")}
+                  enrichmentSlot={(accounts) => <EnrichmentPanel accountCount={accounts.length} />}
                 />
               </div>
             )}

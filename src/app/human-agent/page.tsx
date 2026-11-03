@@ -18,6 +18,7 @@ import {
 import { RevGenLogo } from "@/components/ui/RevGenLogo";
 import { useAuth } from "@/context/AuthContext";
 import { WorkspaceChannelHub } from "@/components/modules/WorkspaceChannelHub";
+import { EnrichmentQueue } from "@/components/enrichment/EnrichmentQueue";
 import { RunReviewQueue } from "@/components/modules/RunReviewQueue";
 import {
   ProspectAccountRecord,
@@ -33,7 +34,7 @@ export default function HumanAgentPage() {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
 
   const [activeTab, setActiveTab] = useState<
-    "qa_workbench" | "assigned_channels" | "run_review"
+    "qa_workbench" | "assigned_channels" | "run_review" | "enrichment"
   >("qa_workbench");
   const [accounts, setAccounts] = useState<ProspectAccountRecord[]>([]);
   const [workspaces, setWorkspaces] = useState<ClientCompanyWorkspace[]>([]);
@@ -353,9 +354,24 @@ export default function HumanAgentPage() {
             <ClipboardCheck className="w-4 h-4" />
             <span>3. Agent Run Review</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("enrichment")}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              activeTab === "enrichment"
+                ? "bg-emerald-600 text-white shadow-sm"
+                : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+            }`}
+          >
+            <ClipboardCheck className="w-4 h-4" />
+            <span>4. Enrichment Tasks</span>
+          </button>
         </div>
 
-        {activeTab === "run_review" ? (
+        {activeTab === "enrichment" ? (
+          <EnrichmentQueue role="humagent" />
+        ) : activeTab === "run_review" ? (
           <RunReviewQueue />
         ) : activeTab === "assigned_channels" ? (
           <div className="space-y-4">

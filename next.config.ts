@@ -43,6 +43,8 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   // Prevent exposing client-side source maps in production builds
   productionBrowserSourceMaps: false,
+  // react-pdf renders PDFs in route handlers; keep it out of the server bundle.
+  serverExternalPackages: ["@react-pdf/renderer"],
   async headers() {
     return [
       {

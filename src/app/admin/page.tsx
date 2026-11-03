@@ -29,6 +29,7 @@ import { RevGenLogo } from "@/components/ui/RevGenLogo";
 import { useAuth } from "@/context/AuthContext";
 import { WorkspaceChannelHub } from "@/components/modules/WorkspaceChannelHub";
 import { RunReviewQueue } from "@/components/modules/RunReviewQueue";
+import { EnrichmentQueue } from "@/components/enrichment/EnrichmentQueue";
 import {
   ClientCompanyWorkspace,
   ClientIcpSubmission,
@@ -70,6 +71,7 @@ export default function AdminMiddlewarePage() {
     | "agentic_prospecting"
     | "all_20_columns"
     | "run_review"
+    | "enrichment"
   >("access_and_credentials");
 
   const [workspaces, setWorkspaces] = useState<ClientCompanyWorkspace[]>([]);
@@ -675,9 +677,25 @@ export default function AdminMiddlewarePage() {
             <ClipboardCheck className="w-4 h-4" />
             <span>6. Agent Run Review</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("enrichment")}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              activeTab === "enrichment"
+                ? "bg-indigo-600 text-white shadow-sm"
+                : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+            }`}
+          >
+            <Database className="w-4 h-4" />
+            <span>7. Enrichment Queue</span>
+          </button>
         </div>
 
         {activeTab === "run_review" && <RunReviewQueue />}
+        {activeTab === "enrichment" && (
+          <EnrichmentQueue role="admin" humagents={humagents.filter((h) => h.status === "active").map((h) => ({ id: h.id, full_name: h.full_name }))} />
+        )}
 
         {/* ════════════════ TAB 1: CLIENT ACCESS REQUESTS, HUMAGENTS & ALLOCATIONS ════════════════ */}
         {activeTab === "access_and_credentials" && (
