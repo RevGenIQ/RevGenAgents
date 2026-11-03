@@ -76,6 +76,10 @@ export async function POST(request: NextRequest) {
     if (!access.isAuthorized && access.errorResponse) {
       return access.errorResponse;
     }
+    // Clients get exactly one free sample (POST /api/samples/run); further runs are started by staff.
+    if (session?.role !== "admin" && session?.role !== "humagent") {
+      return apiError("Research runs are started by the RevGen IQ team. Request more leads from your dashboard.", 403, "STAFF_ONLY");
+    }
 
     const {
       name,

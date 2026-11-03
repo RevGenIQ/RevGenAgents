@@ -139,6 +139,8 @@ export function createFinalize(deps: AgentDeps) {
       ? `Run failed before any account could be researched: ${failures[0].slice(0, 240)}`
       : found === 0
       ? "No account met the evidence and fit bar in this run, so nothing was delivered."
+      : state.reviewMode === "auto"
+      ? `Sample ready: ${published} researched account${published === 1 ? "" : "s"} delivered.`
       : `Run complete: ${published} of ${found} cards published after Humagent review (${verified} with verified contacts).`;
 
     await deps.repo.updateRun(state.runId, {
@@ -150,6 +152,15 @@ export function createFinalize(deps: AgentDeps) {
       completed_at: deps.now().toISOString(),
       error_message: state.stopped ? state.stopReason : failed ? failures.slice(0, 3).join(" | ").slice(0, 1000) : null,
     });
+
+    if (state.reviewMode === "auto") {
+      // A failed sample (a provider outage, nothing researched) is given back so the client can run it again.
+      try {
+        await deps.repo.completeSample(state.workspaceId, state.runId, failed ? "icp_pending" : "delivered");
+      } catch (e) {
+        deps.logger.error("finalize: sample status update failed", e);
+      }
+    }
 
     const usageRows = summariseUsage(state.usage).map((u) => ({
       workspaceId: state.workspaceId,

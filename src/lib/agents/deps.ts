@@ -240,6 +240,8 @@ export interface AgentRepo {
   markResearching(row: CompanyDraft): Promise<void>;
   /** Marks a draft that did not meet the bar, so the grid can show why. */
   markDiscarded(workspaceId: string, domain: string, reason: string): Promise<void>;
+  /** Ends a free sample run: "delivered", or back to "icp_pending" when the run failed. */
+  completeSample(workspaceId: string, runId: string, status: "delivered" | "icp_pending"): Promise<void>;
   /** Idempotent on (workspace_id, work_email). Returns the contact id. */
   upsertContact(row: ContactUpsert): Promise<string>;
   /** Inserts only signals whose (company_id, evidence_url) is new. Returns how many were inserted. */

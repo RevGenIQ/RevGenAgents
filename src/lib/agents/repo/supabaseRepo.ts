@@ -166,6 +166,8 @@ export function createSupabaseRepo(supabase: SupabaseClient): AgentRepo {
           company_name: row.name,
           delivery_stage: "researching",
           research_status: "researching",
+          // Explicitly unscored: the column default would show a score before any research.
+          icp_score: null,
           run_id: row.runId,
         },
         { onConflict: "workspace_id,canonical_domain", ignoreDuplicates: true }
@@ -177,6 +179,15 @@ export function createSupabaseRepo(supabase: SupabaseClient): AgentRepo {
         .eq("workspace_id", row.workspaceId)
         .eq("canonical_domain", row.domain);
       check("markResearching.update", error);
+    },
+
+    async completeSample(workspaceId, runId, status) {
+      const { error } = await supabase
+        .from("workspaces")
+        .update({ sample_status: status, updated_at: new Date().toISOString() })
+        .eq("id", workspaceId)
+        .eq("sample_run_id", runId);
+      check("completeSample", error);
     },
 
     async markDiscarded(workspaceId, domain, reason) {

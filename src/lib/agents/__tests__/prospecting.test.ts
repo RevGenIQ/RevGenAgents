@@ -188,10 +188,11 @@ describe("persistAccount idempotency", () => {
 
 describe("sample runs and company profiles", () => {
   it("publishes a free sample run straight to the client without a review pause", async () => {
-    const { graph, repo } = setup({ icpInput: { reviewMode: "auto" } });
+    const { graph, repo, state } = setup({ icpInput: { reviewMode: "auto" } });
     await graph.invoke({ runId: RUN_ID }, thread());
 
     expect(await pendingReview(graph)).toBeUndefined();
+    expect(state.sampleStatus).toBe("delivered");
     expect(repo.publishCompanies).toHaveBeenCalledWith(WORKSPACE_ID, [expect.stringMatching(/^company-/)]);
   });
 

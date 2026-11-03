@@ -155,6 +155,7 @@ export function createFakeRepo(
 ) {
   const state = {
     stop: options.stop ?? false,
+    sampleStatus: "running" as "running" | "delivered" | "icp_pending",
     runPatches: [] as RunPatch[],
     companies: new Map<string, { id: string; domain: string; stage: string }>(),
     contacts: new Map<string, { id: string; companyId: string }>(),
@@ -210,6 +211,9 @@ export function createFakeRepo(
     markResearching: vi.fn(async (row: { workspaceId: string; domain: string }) => {
       const key = `${row.workspaceId}|${row.domain}`;
       if (!state.companies.has(key)) state.companies.set(key, { id: nextId("company"), domain: row.domain, stage: "researching" });
+    }),
+    completeSample: vi.fn(async (_workspaceId: string, _runId: string, status: "delivered" | "icp_pending") => {
+      state.sampleStatus = status;
     }),
     markDiscarded: vi.fn(async (workspaceId: string, domain: string) => {
       const key = `${workspaceId}|${domain}`;

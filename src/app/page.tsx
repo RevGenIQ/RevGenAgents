@@ -9,7 +9,7 @@ import { CommandCenter } from "@/components/modules/CommandCenter";
 import { IcpGrowthInputs } from "@/components/modules/IcpGrowthInputs";
 import { AccountsContacts } from "@/components/modules/AccountsContacts";
 import { AccountDossierDrawer } from "@/components/modules/AccountDossierDrawer";
-import { AgentMesh } from "@/components/modules/AgentMesh";
+import { SampleWorkspace } from "@/components/samples/SampleWorkspace";
 import { WorkspaceChannelHub } from "@/components/modules/WorkspaceChannelHub";
 import { LandingPage } from "@/components/landing/LandingPage";
 import { CompanyFavicon } from "@/components/ui/CompanyFavicon";
@@ -21,10 +21,10 @@ import {
 } from "@/lib/store/osWorkflowStore";
 
 const screenTitles: Record<NavItemKey, string> = {
-  command_center: "Command Center · Glance Overview",
-  icp_inputs: "ICP & Growth Brief",
-  agent_mesh: "Research Ecosystem · ATLAS Supervision & L1–L10 Live",
-  accounts_contacts: "Account Intelligence · ~5 Samples (<24h) + ~35 Monthly Cards",
+  command_center: "Overview",
+  icp_inputs: "ICP brief",
+  agent_mesh: "Sample accounts",
+  accounts_contacts: "Delivered accounts",
   workspace_channel: "Workspace Collaboration Channel",
   account_dossier: "Account Dossier",
 };
@@ -33,7 +33,7 @@ export default function App() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading } = useAuth();
 
-  const [activeNav, setActiveNav] = useState<NavItemKey>("command_center");
+  const [activeNav, setActiveNav] = useState<NavItemKey>("agent_mesh");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [currentWorkspace, setCurrentWorkspace] = useState<Workspace>({
     id: user?.workspaceId || "",
@@ -213,12 +213,12 @@ export default function App() {
             )}
 
             {activeNav === "agent_mesh" && (
-              <AgentMesh
-                workspaceId={activeWorkspaceId}
-                onNavigateToResults={() => setActiveNav("accounts_contacts")}
-                onNavigateToIcp={() => setActiveNav("icp_inputs")}
-                onNavigateToChannel={() => setActiveNav("workspace_channel")}
-              />
+              <div className="max-w-7xl mx-auto">
+                <SampleWorkspace
+                  workspaceId={activeWorkspaceId}
+                  onOpenChannel={() => setActiveNav("workspace_channel")}
+                />
+              </div>
             )}
 
             {activeNav === "accounts_contacts" && (
