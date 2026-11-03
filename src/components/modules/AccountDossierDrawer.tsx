@@ -411,7 +411,7 @@ ${seller}`;
               )}
             </div>
             <div className="flex items-center gap-3 mt-1.5">
-              <CompanyFavicon domain={company?.canonical_domain || company?.domain} name={company?.company_name || companyName} size="w-8 h-8" />
+              <CompanyFavicon domain={company?.canonical_domain || company?.domain} name={company?.company_name || companyName} size="md" />
               <div>
                 <h2 className="text-lg font-bold text-[var(--ink)] leading-snug">
                   {company?.company_name || companyName}

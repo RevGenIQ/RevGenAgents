@@ -63,7 +63,7 @@ export function Topbar({
           <CompanyFavicon
             domain={resolvedDomain}
             name={companyName}
-            size="w-8 h-8"
+            size="md"
           />
           <div className="min-w-0 text-left">
             <div className="flex items-center gap-2 min-w-0">
@@ -130,7 +130,7 @@ export function Topbar({
           <CompanyFavicon
             domain={resolvedDomain}
             name={companyName}
-            size="w-8 h-8"
+            size="md"
           />
           <div className="flex flex-col text-left">
             <span className="text-xs font-bold text-slate-900 dark:text-slate-100 leading-tight">

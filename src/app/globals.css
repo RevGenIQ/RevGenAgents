@@ -1115,3 +1115,74 @@ html.revgen-splash-pending body {
 @media (prefers-reduced-motion: reduce) {
   .cell-shimmer, .cell-arrive { animation: none; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   MARQUEE — seamless right-to-left loop (see src/components/ui/Marquee.tsx)
+   Two identical tracks sit side by side; each shifts by its own width plus
+   one gap, so the second track lands exactly where the first started.
+══════════════════════════════════════════════════════════════════════ */
+@keyframes marquee-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(-100% - var(--marquee-gap, 16px)));
+  }
+}
+
+.marquee {
+  display: flex;
+  gap: var(--marquee-gap, 16px);
+  overflow: hidden;
+  width: 100%;
+}
+
+.marquee--fade {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent);
+}
+
+.marquee__track {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--marquee-gap, 16px);
+  min-width: max-content;
+  animation: marquee-scroll var(--marquee-duration, 40s) linear infinite;
+}
+
+.marquee--pausable:hover .marquee__track,
+.marquee--pausable:focus-within .marquee__track {
+  animation-play-state: paused;
+}
+
+/* Ticker strip on the landing hero (single track, content already doubled) */
+@keyframes ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-ticker {
+  width: max-content;
+  animation: ticker-scroll 45s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee {
+    overflow-x: auto;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .marquee__track,
+  .animate-ticker {
+    animation: none;
+  }
+
+  .marquee__track[aria-hidden="true"] {
+    display: none;
+  }
+}

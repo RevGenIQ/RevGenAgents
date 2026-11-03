@@ -6,6 +6,7 @@ import { plusJakarta } from "@/app/fonts";
 import { RevGenLogo } from "@/components/ui/RevGenLogo";
 import { useAuth } from "@/context/AuthContext";
 import { SignalGraphHero } from "@/components/landing/hero/SignalGraphHero";
+import { LiveIntentStream } from "@/components/landing/LiveIntentStream";
 import {
   ArrowRight,
   CheckCircle2,
@@ -15,8 +16,6 @@ import {
   Send,
   Eye,
   Cpu,
-  ExternalLink,
-  RefreshCw,
 } from "lucide-react";
 
 interface LandingPageProps {
@@ -76,42 +75,25 @@ const AGENTS_LIST = [
   },
 ];
 
+const TICKER_SIGNALS = [
+  "Auto-components maker in Pune announces ₹220 Cr plant expansion",
+  "Specialty chemicals firm appointed a new VP Operations",
+  "Logistics SaaS closed Series B, hiring 40 sales reps",
+  "Tier-1 casting vendor opens expansion line in Chennai",
+];
+
 export function LandingPage({ onEnterApp }: LandingPageProps) {
   const { isAuthenticated } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const [intentItems, setIntentItems] = useState<any[]>([]);
-  const [intentUpdatedAt, setIntentUpdatedAt] = useState<string>("");
-  const [isRefreshingIntent, setIsRefreshingIntent] = useState<boolean>(false);
-
-  const loadLiveIntentStream = async () => {
-    setIsRefreshingIntent(true);
-    try {
-      const res = await fetch("/api/public-intent");
-      if (res.ok) {
-        const data = await res.json();
-        setIntentItems(data.items || []);
-        setIntentUpdatedAt(data.updatedAt || new Date().toISOString());
-      }
-    } catch {
-      // ignore
-    } finally {
-      setIsRefreshingIntent(false);
-    }
-  };
-
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20);
     };
     window.addEventListener("scroll", handleScroll);
 
-    loadLiveIntentStream();
-    const interval = setInterval(loadLiveIntentStream, 45000);
-
     return () => {
       window.removeEventListener("scroll", handleScroll);
-      clearInterval(interval);
     };
   }, []);
 
@@ -464,184 +446,25 @@ export function LandingPage({ onEnterApp }: LandingPageProps) {
 
         {/* TICKER MARQUEE: SCROLLING SIGNALS STRIP IN INDIGO */}
         <div className="w-full border-y border-white/10 bg-[#0B0033]/80 backdrop-blur-md py-3.5 overflow-hidden select-none relative z-10 shadow-lg">
-          <div className="animate-ticker text-xs font-mono text-white/70 flex items-center gap-10 whitespace-nowrap">
-            <div className="flex items-center gap-2">
-              <span className="text-[#5B4BFF]">⚡</span>
-              <span>Auto-components maker in Pune announces ₹220 Cr plant expansion</span>
-            </div>
-            <span className="text-white/20">•</span>
-            <div className="flex items-center gap-2">
-              <span className="text-[#5B4BFF]">⚡</span>
-              <span>Specialty chemicals firm appointed a new VP Operations</span>
-            </div>
-            <span className="text-white/20">•</span>
-            <div className="flex items-center gap-2">
-              <span className="text-[#5B4BFF]">⚡</span>
-              <span>Logistics SaaS closed Series B, hiring 40 sales reps</span>
-            </div>
-            <span className="text-white/20">•</span>
-            <div className="flex items-center gap-2">
-              <span className="text-[#5B4BFF]">⚡</span>
-              <span>Tier-1 casting vendor opens expansion line in Chennai</span>
-            </div>
-            <span className="text-white/20">•</span>
-            <div className="flex items-center gap-2">
-              <span className="text-[#5B4BFF]">⚡</span>
-              <span>Auto-components maker in Pune announces ₹220 Cr plant expansion</span>
-            </div>
-            <span className="text-white/20">•</span>
-            <div className="flex items-center gap-2">
-              <span className="text-[#5B4BFF]">⚡</span>
-              <span>Specialty chemicals firm appointed a new VP Operations</span>
-            </div>
+          <div className="animate-ticker text-xs font-mono text-white/70 flex items-center whitespace-nowrap">
+            {/* Rendered twice so the -50% keyframe loops seamlessly */}
+            {[...TICKER_SIGNALS, ...TICKER_SIGNALS].map((signal, idx) => (
+              <div
+                key={`${signal}-${idx}`}
+                className="flex items-center gap-2 pr-10"
+                aria-hidden={idx >= TICKER_SIGNALS.length ? true : undefined}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-[#5B4BFF]" aria-hidden="true" />
+                <span>{signal}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
       {/* ════════════════ LIGHT-THEMED SECTIONS BELOW THE MARQUEE ════════════════ */}
       <div className="bg-[#f8fafc] text-slate-900 flex-1">
-        {/* ════════════════ MINIMALIST LIVE INTENT SECTION ════════════════ */}
-        <section
-          id="live-intent-stream"
-          className="relative z-10 py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full"
-        >
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
-            <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-[11px] font-mono uppercase tracking-wider text-indigo-700 font-bold mb-3">
-                <span className="w-2 h-2 rounded-full bg-indigo-600 animate-ping" />
-                Live Intent
-              </div>
-              <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
-                Live Intent
-              </h2>
-              <p className="text-sm text-slate-600 mt-1.5 max-w-xl">
-                Real-time buying signals detected across high-velocity companies. Click any intent card to inspect the underlying source directly.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3">
-              {intentUpdatedAt && (
-                <span className="text-[11px] font-mono text-slate-400">
-                  Synced {new Date(intentUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={loadLiveIntentStream}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white text-slate-700 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 shadow-2xs transition-all cursor-pointer"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingIntent ? "animate-spin text-indigo-600" : ""}`} />
-                <span>{isRefreshingIntent ? "Syncing..." : "Refresh"}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Minimalist Stylish Intent Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {intentItems.slice(0, 9).map((item) => {
-              const initials = String(item.company || "CO")
-                .slice(0, 2)
-                .toUpperCase();
-              return (
-                <div
-                  key={item.id}
-                  onClick={() => {
-                    if (item.url) {
-                      window.open(item.url, "_blank", "noopener,noreferrer");
-                    }
-                  }}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && item.url) {
-                      window.open(item.url, "_blank", "noopener,noreferrer");
-                    }
-                  }}
-                  className="group rounded-2xl p-5 bg-white hover:bg-slate-50/70 border border-slate-200/90 hover:border-indigo-400 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between gap-4 cursor-pointer"
-                >
-                  {/* Top Row: Company Logo + Name/Domain + LinkedIn Action */}
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
-                        {item.logoUrl ? (
-                          <img
-                            src={item.logoUrl}
-                            alt={item.company}
-                            className="w-full h-full object-contain p-1.5"
-                            onError={(e) => {
-                              (e.currentTarget as HTMLImageElement).style.display = "none";
-                              const parent = e.currentTarget.parentElement;
-                              if (parent) {
-                                parent.innerHTML = `<span class="text-xs font-extrabold text-indigo-600">${initials}</span>`;
-                              }
-                            }}
-                          />
-                        ) : (
-                          <span className="text-xs font-extrabold text-indigo-600">
-                            {initials}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="min-w-0">
-                        <h3 className="text-sm font-extrabold text-slate-900 group-hover:text-indigo-600 transition-colors truncate">
-                          {item.company}
-                        </h3>
-                        <p className="text-[11px] font-mono text-slate-500 truncate">
-                          {item.domain}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <a
-                        href={
-                          item.linkedinUrl ||
-                          `https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(
-                            item.company || ""
-                          )}`
-                        }
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        title={`View ${item.company} on LinkedIn`}
-                        className="w-8 h-8 rounded-lg bg-[#0A66C2]/10 hover:bg-[#0A66C2] text-[#0A66C2] hover:text-white border border-[#0A66C2]/20 flex items-center justify-center transition-colors"
-                      >
-                        <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z" />
-                        </svg>
-                      </a>
-                      <span className="text-[11px] font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-lg">
-                        {item.intentScore}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Signal Headline & Summary */}
-                  <div className="space-y-1.5">
-                    <p className="text-xs font-bold text-slate-800 line-clamp-1">
-                      {item.title}
-                    </p>
-                    <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
-                      {item.summary}
-                    </p>
-                  </div>
-
-                  {/* Minimal Footer */}
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] font-mono text-slate-500">
-                    <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold">
-                      {item.signalType || "Live Signal"}
-                    </span>
-                    <span className="inline-flex items-center gap-1 text-indigo-600 font-semibold group-hover:translate-x-0.5 transition-transform">
-                      <span>Source</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
+        <LiveIntentStream />
 
         {/* ════════════════ SECTION 3: FIVE AGENTS (LIGHT THEME) ════════════════ */}
         <section

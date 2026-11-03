@@ -173,7 +173,7 @@ export function Sidebar({
               <CompanyFavicon
                 domain={workspaceDomain}
                 name={workspaceName}
-                size="w-8 h-8"
+                size="md"
               />
               {!isCollapsed && (
                 <div className="overflow-hidden text-left">
@@ -314,7 +314,7 @@ export function Sidebar({
             <CompanyFavicon
               domain={workspaceDomain}
               name={workspaceName}
-              size="w-7 h-7"
+              size="md"
             />
             {!isCollapsed && (
               <div className="overflow-hidden text-left">
