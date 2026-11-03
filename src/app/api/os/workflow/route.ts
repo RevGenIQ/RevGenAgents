@@ -167,7 +167,9 @@ function forbidden(error: string) {
   return NextResponse.json({ ok: false, error }, { status: 403 });
 }
 
-const MESSAGE_TYPES = new Set(["text", "google_meet", "appointment", "document", "payment"]);
+const MESSAGE_TYPES = new Set(["text", "google_meet", "appointment", "document", "payment", "lead_request", "icp_change_request"]);
+/** Only staff can post payment updates; a client could otherwise fake "Payment received". */
+const STAFF_ONLY_MESSAGE_TYPES = new Set(["payment"]);
 const METADATA_KEYS = [
   "meetUrl",
   "appointmentDate",
@@ -177,6 +179,8 @@ const METADATA_KEYS = [
   "docUrl",
   "paymentAmount",
   "paymentStatus",
+  "requestedLeads",
+  "requestNote",
 ] as const;
 const URL_METADATA_KEYS = new Set(["meetUrl", "docUrl"]);
 
@@ -776,7 +780,11 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      if (!MESSAGE_TYPES.has(messageType) || content.length > 5000) {
+      if (
+        !MESSAGE_TYPES.has(messageType) ||
+        content.length > 5000 ||
+        (STAFF_ONLY_MESSAGE_TYPES.has(messageType) && session.role !== "admin" && session.role !== "humagent")
+      ) {
         return NextResponse.json(
           { ok: false, error: "Unsupported message type or message too long." },
           { status: 400 }

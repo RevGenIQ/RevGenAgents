@@ -59,9 +59,13 @@ export interface WorkspaceChatMessage {
     | "document"
     | "payment"
     | "icp_upgrade"
+    | "icp_change_request"
+    | "lead_request"
     | "system";
   content: string;
   metadata?: {
+    requestedLeads?: string;
+    requestNote?: string;
     meetUrl?: string;
     appointmentDate?: string;
     appointmentTime?: string;
