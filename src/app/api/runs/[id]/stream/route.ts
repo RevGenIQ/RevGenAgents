@@ -3,6 +3,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { rateLimit } from "@/lib/security/rateLimit";
 import { isValidUUID } from "@/lib/security/validator";
 import { getSessionFromRequest, verifyWorkspaceAccess } from "@/lib/security/auth";
+import { RUN_ACCOUNT_COLUMNS, mapRunAccount } from "@/lib/accounts/runAccount";
 
 export async function GET(
   request: NextRequest,
@@ -51,6 +52,7 @@ export async function GET(
     async start(controller) {
       let isClosed = false;
       let lastTaskId = "";
+      let lastAccountsFingerprint = "";
 
       const sendEvent = (event: string, data: unknown) => {
         if (isClosed) return;
@@ -99,6 +101,20 @@ export async function GET(
               lastTaskId = latestTask.id;
               sendEvent("task_update", { tasks });
             }
+          }
+
+          // Company rows for this run, so the live grid fills cell by cell as nodes write them.
+          const { data: accountRows } = await supabase
+            .from("companies")
+            .select(RUN_ACCOUNT_COLUMNS)
+            .eq("workspace_id", run.workspace_id)
+            .eq("run_id", id)
+            .order("created_at", { ascending: true });
+          const accounts = ((accountRows || []) as unknown as Record<string, unknown>[]).map(mapRunAccount);
+          const fingerprint = accounts.map((a) => `${a.id}:${a.updatedAt}:${a.status}:${a.stage}`).join("|");
+          if (fingerprint !== lastAccountsFingerprint) {
+            lastAccountsFingerprint = fingerprint;
+            sendEvent("account_update", { accounts });
           }
 
           // If run has finished or stopped, send final summary and close

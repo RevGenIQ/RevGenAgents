@@ -93,6 +93,7 @@ export function createLoadContext(deps: AgentDeps) {
       icp,
       dnc: buildDncList(workspace.dncEntries, run.icpInput),
       deliveredDomains: unique(delivered.filter(Boolean)),
+      reviewMode: run.icpInput.reviewMode === "auto" ? "auto" : "humagent",
       budget: {
         maxCostUsd: Number((deps.config.budgetPerLeadUsd * targetCount).toFixed(2)),
         maxLlmCalls: deps.config.maxLlmCallsPerRun,

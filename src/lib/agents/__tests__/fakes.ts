@@ -70,8 +70,10 @@ function llmResponse(task: LlmTask, user: string): unknown {
       return signalFor(user);
     case "scoreFit":
       return user.includes("Acme Robotics")
-        ? { fitScore: 92, intentScore: 88, rationale: "Industrial robotics maker in Germany opening a new plant." }
-        : { fitScore: 20, intentScore: 15, rationale: "Office services company; not in the ICP." };
+        ? { adjustment: 10, rationale: "Industrial robotics maker in Germany opening a new plant.", whyIcpFit: "Robotics maker in Germany.", whatToPitch: "Plant ramp-up support." }
+        : { adjustment: -10, rationale: "Office services company; not in the ICP.", whyIcpFit: "", whatToPitch: "" };
+    case "profileCompany":
+      return { fields: {}, naicsSector: null, sicDivision: null };
     case "writeDossier":
       return {
         summary: "Acme Robotics is opening a new robotics plant in Munich.",
@@ -84,10 +86,21 @@ function llmResponse(task: LlmTask, user: string): unknown {
 
 export interface FakeToolsOptions {
   costPerCall?: number;
+  /** URL -> document served by fetchPage; anything else is a 404. */
+  pages?: Record<string, { body: string; contentType?: string; headers?: Record<string, string> }>;
+  mx?: string[];
 }
+
+/** Acme's homepage: schema.org Organization data plus a Next.js marker for tech detection. */
+export const ACME_HOME = `<html><head><meta name="description" content="Acme Robotics builds industrial robots.">
+<script type="application/ld+json">{"@type":"Organization","name":"Acme Robotics","foundingDate":"2012",
+"numberOfEmployees":{"value":420},"address":{"addressLocality":"Munich","addressCountry":"Germany"},
+"sameAs":["https://www.linkedin.com/company/acme-robotics"]}</script>
+<script src="/_next/static/chunks/main.js"></script></head><body>Industrial robots made in Munich.</body></html>`;
 
 export function createFakeTools(options: FakeToolsOptions = {}) {
   const cost = options.costPerCall ?? 0.001;
+  const pages = options.pages ?? { "https://acme-robotics.com/": { body: ACME_HOME } };
   const contact: ContactCandidate = {
     firstName: "Dana",
     lastName: "Weber",
@@ -123,6 +136,13 @@ export function createFakeTools(options: FakeToolsOptions = {}) {
       ok<ContactCandidate | null>(domain === "acme-robotics.com" ? contact : null, usage("apollo", "contact_enrichment", cost))
     ),
     verifyEmail: vi.fn(async (email: string) => ok({ status: "deliverable" as const, reason: `valid: ${email}` }, usage("zerobounce", "email_verification", cost))),
+    fetchPage: vi.fn(async (url: string) => {
+      const doc = pages[url];
+      return doc
+        ? ok({ url, contentType: doc.contentType || "text/html", headers: doc.headers || {}, body: doc.body }, [])
+        : ({ ok: false as const, error: { code: "HTTP_ERROR", message: `HTTP 404 for ${url}` }, usage: [] });
+    }),
+    lookupMx: vi.fn(async () => options.mx || []),
   };
   // vi.fn() erases the generic signature of llm, so the typed implementation is exposed as llm
   // and the mock (for call assertions) as llmMock.
@@ -130,7 +150,9 @@ export function createFakeTools(options: FakeToolsOptions = {}) {
   return { ...tools, llm: agentTools.llm, llmMock };
 }
 
-export function createFakeRepo(options: { stop?: boolean; dncDomains?: string[]; icpBrief?: Record<string, unknown> } = {}) {
+export function createFakeRepo(
+  options: { stop?: boolean; dncDomains?: string[]; icpBrief?: Record<string, unknown>; icpInput?: Record<string, unknown> } = {}
+) {
   const state = {
     stop: options.stop ?? false,
     runPatches: [] as RunPatch[],
@@ -152,7 +174,7 @@ export function createFakeRepo(options: { stop?: boolean; dncDomains?: string[];
       status: "queued",
       targetCount: 5,
       minIcpScore: 70,
-      icpInput: {},
+      icpInput: options.icpInput ?? {},
     })),
     getWorkspace: vi.fn(async () => ({
       id: WORKSPACE_ID,
@@ -180,10 +202,19 @@ export function createFakeRepo(options: { stop?: boolean; dncDomains?: string[];
     upsertCompany: vi.fn(async (row: { workspaceId: string; domain: string }) => {
       const key = `${row.workspaceId}|${row.domain}`;
       const existing = state.companies.get(key);
-      if (existing) return existing.id;
-      const id = nextId("company");
+      if (existing && existing.stage !== "researching" && existing.stage !== "discarded") return existing.id;
+      const id = existing?.id || nextId("company");
       state.companies.set(key, { id, domain: row.domain, stage: "human_agent_queue" });
       return id;
+    }),
+    markResearching: vi.fn(async (row: { workspaceId: string; domain: string }) => {
+      const key = `${row.workspaceId}|${row.domain}`;
+      if (!state.companies.has(key)) state.companies.set(key, { id: nextId("company"), domain: row.domain, stage: "researching" });
+    }),
+    markDiscarded: vi.fn(async (workspaceId: string, domain: string) => {
+      const key = `${workspaceId}|${domain}`;
+      const existing = state.companies.get(key);
+      if (existing && (existing.stage === "researching" || existing.stage === "discarded")) state.companies.set(key, { ...existing, stage: "discarded" });
     }),
     upsertContact: vi.fn(async (row: { workspaceId: string; workEmail: string; companyId: string }) => {
       const key = `${row.workspaceId}|${row.workEmail}`;

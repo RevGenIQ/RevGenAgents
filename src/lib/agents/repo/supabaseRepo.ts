@@ -7,6 +7,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AgentRepoError, type AgentRepo } from "../deps";
+import { profileColumns } from "./companyColumns";
 
 type PgError = { message: string } | null;
 
@@ -134,6 +135,11 @@ export function createSupabaseRepo(supabase: SupabaseClient): AgentRepo {
             contacts_json: row.contactsJson,
             evidence_links_json: row.evidenceJson,
             company_technologies: { source: "langgraph_run", run_id: row.runId },
+            ...profileColumns(row.profile, row.signals),
+            why_icp_fit: row.whyIcpFit || null,
+            what_to_pitch: row.whatToPitch || null,
+            research_status: "done",
+            run_id: row.runId,
             updated_at: new Date().toISOString(),
           },
           { onConflict: "workspace_id,canonical_domain" }
@@ -142,7 +148,45 @@ export function createSupabaseRepo(supabase: SupabaseClient): AgentRepo {
         .single();
       check("upsertCompany", error);
       if (!data?.id) throw new AgentRepoError("upsertCompany", "No id returned");
+      // A row created as a live-grid draft joins the review queue; published rows keep their stage.
+      const { error: stageErr } = await supabase
+        .from("companies")
+        .update({ delivery_stage: "human_agent_queue" })
+        .eq("id", data.id)
+        .in("delivery_stage", ["researching", "discarded"]);
+      check("upsertCompany.stage", stageErr);
       return data.id;
+    },
+
+    async markResearching(row) {
+      const { error: insertErr } = await supabase.from("companies").upsert(
+        {
+          workspace_id: row.workspaceId,
+          canonical_domain: row.domain,
+          company_name: row.name,
+          delivery_stage: "researching",
+          research_status: "researching",
+          run_id: row.runId,
+        },
+        { onConflict: "workspace_id,canonical_domain", ignoreDuplicates: true }
+      );
+      check("markResearching.insert", insertErr);
+      const { error } = await supabase
+        .from("companies")
+        .update({ research_status: "researching", run_id: row.runId })
+        .eq("workspace_id", row.workspaceId)
+        .eq("canonical_domain", row.domain);
+      check("markResearching.update", error);
+    },
+
+    async markDiscarded(workspaceId, domain, reason) {
+      const { error } = await supabase
+        .from("companies")
+        .update({ research_status: "done", delivery_stage: "discarded", icp_score: null, icp_fit_reason: reason.slice(0, 500) })
+        .eq("workspace_id", workspaceId)
+        .eq("canonical_domain", domain)
+        .in("delivery_stage", ["researching", "discarded"]);
+      check("markDiscarded", error);
     },
 
     async upsertContact(row) {

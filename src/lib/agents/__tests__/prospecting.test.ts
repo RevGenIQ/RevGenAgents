@@ -6,10 +6,16 @@ import { buildProspectingGraph } from "../graphs/prospecting";
 import { fallbackPlan } from "../nodes/context";
 import { dateNearQuote, tallyRejections, validateSignals } from "../nodes/account/signals";
 import { EMPTY_ICP } from "../state";
+import type { CompanyUpsert } from "../deps";
 import type { ReviewRequest } from "../types";
 import { createDeps, createFakeRepo, createFakeTools, HITS, NOW, RUN_ID, WORKSPACE_ID } from "./fakes";
 
 const thread = (id = RUN_ID) => ({ configurable: { thread_id: id } });
+
+/** Companies that reached the review queue or later; live-grid drafts that were discarded are excluded. */
+function keptCompanies(state: ReturnType<typeof createFakeRepo>["state"]) {
+  return [...state.companies.values()].filter((c) => c.stage !== "discarded" && c.stage !== "researching");
+}
 
 function setup(options: Parameters<typeof createFakeRepo>[0] = {}, toolCost?: number, budgetPerLeadUsd?: number) {
   const { repo, state } = createFakeRepo(options);
@@ -32,7 +38,7 @@ describe("ProspectingGraph", () => {
     const extractCalls = tools.llmMock.mock.calls.filter(([task]) => task === "extractSignals");
     expect(extractCalls).toHaveLength(2);
     expect(extractCalls.map(([, , p]) => p.user).join(" ")).not.toContain("Blocked Co");
-    expect([...state.companies.values()].map((c) => c.domain)).toEqual(["acme-robotics.com"]);
+    expect(keptCompanies(state).map((c) => c.domain)).toEqual(["acme-robotics.com"]);
   });
 
   it("discards a company whose fit score is below the threshold", async () => {
@@ -44,7 +50,8 @@ describe("ProspectingGraph", () => {
     expect(lowfit?.outcome).toBe("discarded");
     expect(tools.findContact).toHaveBeenCalledTimes(1);
     expect(tools.findContact).toHaveBeenCalledWith("Acme Robotics", "acme-robotics.com", ["VP Operations"]);
-    expect([...state.companies.values()].some((c) => c.domain === "lowfit.io")).toBe(false);
+    expect(keptCompanies(state).some((c) => c.domain === "lowfit.io")).toBe(false);
+    expect([...state.companies.values()].find((c) => c.domain === "lowfit.io")?.stage).toBe("discarded");
   });
 
   it("pauses at humagentReview and resumes with the reviewer's decisions", async () => {
@@ -105,7 +112,7 @@ describe("ProspectingGraph", () => {
     expect((await pendingReview(graph))?.cards).toHaveLength(1);
     // Completed supersteps are not repeated after the continuation.
     expect(tools.llmMock.mock.calls.filter(([task]) => task === "discoverCompanies")).toHaveLength(1);
-    expect(state.companies.size).toBe(1);
+    expect(keptCompanies(state)).toHaveLength(1);
   });
 
   it("marks the run failed, not completed, when an LLM provider error leaves nothing researched", async () => {
@@ -160,7 +167,7 @@ describe("persistAccount idempotency", () => {
     expect(first.outcome).toBe("persisted");
     expect(second.companyId).toBe(first.companyId);
     expect(repo.upsertCompany).toHaveBeenCalledTimes(2);
-    expect(state.companies.size).toBe(1);
+    expect(keptCompanies(state)).toHaveLength(1);
     expect(state.contacts.size).toBe(1);
     expect(state.signals).toHaveLength(1);
     expect(state.dossiers.size).toBe(1);
@@ -175,7 +182,31 @@ describe("persistAccount idempotency", () => {
     const secondRun = "33333333-3333-4333-8333-333333333333";
     await graph.invoke({ runId: secondRun }, thread(secondRun));
     expect(await pendingReview(graph, secondRun)).toBeUndefined();
-    expect(state.companies.size).toBe(1);
+    expect(keptCompanies(state)).toHaveLength(1);
+  });
+});
+
+describe("sample runs and company profiles", () => {
+  it("publishes a free sample run straight to the client without a review pause", async () => {
+    const { graph, repo } = setup({ icpInput: { reviewMode: "auto" } });
+    await graph.invoke({ runId: RUN_ID }, thread());
+
+    expect(await pendingReview(graph)).toBeUndefined();
+    expect(repo.publishCompanies).toHaveBeenCalledWith(WORKSPACE_ID, [expect.stringMatching(/^company-/)]);
+  });
+
+  it("saves the website profile and its sources with the account", async () => {
+    const { graph, repo } = setup();
+    await graph.invoke({ runId: RUN_ID }, thread());
+
+    const row = vi
+      .mocked(repo.upsertCompany)
+      .mock.calls.map(([r]) => r as CompanyUpsert)
+      .find((r) => r.domain === "acme-robotics.com");
+    expect(row?.profile.employeeCount).toEqual({ value: "420", sourceUrl: "https://acme-robotics.com/", method: "website" });
+    expect(row?.profile.linkedinUrl?.value).toBe("https://www.linkedin.com/company/acme-robotics");
+    expect(row?.profile.techStack?.value).toContain("Next.js");
+    expect(row?.profile.foundedYear?.value).toBe("2012");
   });
 });
 

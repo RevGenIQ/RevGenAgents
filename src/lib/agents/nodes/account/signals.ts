@@ -12,6 +12,7 @@ import type { AgentDeps } from "../../deps";
 import type { AccountStateType, AccountUpdate } from "../../state";
 import type { EvidenceSignal, SourceSnippet, UsageEntry } from "../../types";
 import { isRejectedSource, isWithinWindow, parseDate } from "../../tools/webSearch";
+import { adjustedScore, ruleScore } from "../../profile/scoring";
 import { finishTask, startTask } from "../guards";
 
 const THIN_CONTENT_CHARS = 300;
@@ -35,9 +36,10 @@ const signalSchema = z.object({
 type RawSignal = z.infer<typeof signalSchema>["signals"][number];
 
 const scoreSchema = z.object({
-  fitScore: z.number().min(0).max(100),
-  intentScore: z.number().min(0).max(100),
+  adjustment: z.number().min(-100).max(100),
   rationale: z.string().min(3).max(600),
+  whyIcpFit: z.string().max(600).default(""),
+  whatToPitch: z.string().max(600).default(""),
 });
 
 /** Lowercase, straight quotes, single spaces: makes quote matching tolerant of formatting only. */
@@ -180,6 +182,11 @@ async function gatherEvidence(
 export function createExtractSignals(deps: AgentDeps) {
   return async function extractSignals(state: AccountStateType): Promise<AccountUpdate> {
     const { candidate, context } = state;
+    try {
+      await deps.repo.markResearching({ workspaceId: context.workspaceId, domain: candidate.domain, name: candidate.name, runId: context.runId });
+    } catch (e) {
+      deps.logger.warn("Live-grid draft row failed", { domain: candidate.domain, error: e instanceof Error ? e.message : String(e) });
+    }
     const taskId = await startTask(deps, {
       runId: context.runId,
       workspaceId: context.workspaceId,
@@ -222,32 +229,46 @@ export function createExtractSignals(deps: AgentDeps) {
 
 export function createScoreFit(deps: AgentDeps) {
   return async function scoreFit(state: AccountStateType): Promise<AccountUpdate> {
-    const { candidate, context, signals } = state;
+    const { candidate, context, signals, profile } = state;
     if (signals.length === 0) {
       return { score: null, reason: "No evidence-backed buying signal (source URL, date and quote) was found." };
     }
 
+    const rule = ruleScore(context.icp, candidate, profile, signals, deps.now());
+    const facts = Object.fromEntries(Object.entries(profile).map(([k, f]) => [k, f?.value]));
     const llm = await deps.tools.llm("scoreFit", scoreSchema, {
       system:
-        'You score a company against a B2B ICP. Output JSON {"fitScore":0-100,"intentScore":0-100,"rationale":string}. ' +
-        "fitScore: how well the company matches the ICP industries, geographies and size. " +
-        "intentScore: how strongly the cited signals indicate a current buying window. Use only the evidence given.",
-      user: `ICP:\n${JSON.stringify(context.icp)}\n\nCompany: ${JSON.stringify({
-        name: candidate.name,
-        domain: candidate.domain,
-        industry: candidate.industry,
-        country: candidate.country,
-      })}\nSignals:\n${JSON.stringify(signals)}`,
+        'You review a rules-based account score for a B2B ICP. Output JSON {"adjustment":-10..10,"rationale","whyIcpFit","whatToPitch"}. ' +
+        "adjustment moves the score by at most 10 points, only for evidence the rules cannot see; use 0 otherwise. " +
+        "whyIcpFit: 1-2 sentences on why this company matches the ICP. whatToPitch: 1-2 sentences on what the seller should pitch and why now. " +
+        "Use only the profile facts and signals given; do not add numbers that are not in them.",
+      user: `Seller offering: ${context.icp.offering || "not specified"}
+ICP:
+${JSON.stringify(context.icp)}
+
+Company: ${candidate.name} (${candidate.domain})
+Profile:
+${JSON.stringify(
+        facts
+      )}
+Signals:
+${JSON.stringify(signals)}
+Rule score: ${JSON.stringify(rule)}`,
     });
 
-    if (!llm.ok) {
-      return { score: null, usage: llm.usage, reason: `Fit scoring unavailable (${llm.error.code}).` };
-    }
-    const fitScore = Math.round(llm.value.fitScore);
-    const intentScore = Math.round(llm.value.intentScore);
-    const combined = Math.round(fitScore * 0.6 + intentScore * 0.4);
+    const adjustment = llm.ok ? llm.value.adjustment : 0;
+    const combined = adjustedScore(rule, adjustment);
+    const rationale = llm.ok ? llm.value.rationale.trim() : rule.notes.join(" ") || "Scored by rules only.";
     return {
-      score: { fitScore, intentScore, combined, rationale: llm.value.rationale.trim() },
+      score: {
+        fitScore: Math.round(((rule.icpMatch + rule.completeness) / 50) * 100),
+        intentScore: Math.round(((rule.signals + rule.timing) / 50) * 100),
+        combined,
+        rationale,
+        breakdown: { icpMatch: rule.icpMatch, signals: rule.signals, completeness: rule.completeness, timing: rule.timing, adjustment: combined - rule.total },
+        whyIcpFit: llm.ok ? llm.value.whyIcpFit.trim() : "",
+        whatToPitch: llm.ok ? llm.value.whatToPitch.trim() : "",
+      },
       usage: llm.usage,
     };
   };

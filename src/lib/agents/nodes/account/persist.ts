@@ -53,7 +53,7 @@ function scoringJson(score: FitScore, verified: VerifiedContact[], dossier: Doss
 
 export function createPersistAccount(deps: AgentDeps) {
   return async function persistAccount(state: AccountStateType): Promise<AccountUpdate> {
-    const { candidate, context, signals, verified, score, dossier } = state;
+    const { candidate, context, signals, verified, score, dossier, profile } = state;
     if (!score || !dossier) {
       return { outcome: "failed", reason: "persistAccount reached without a score or dossier." };
     }
@@ -63,8 +63,8 @@ export function createPersistAccount(deps: AgentDeps) {
       workspaceId: context.workspaceId,
       domain: candidate.domain,
       name: candidate.name,
-      industry: candidate.industry,
-      country: candidate.country,
+      industry: profile.industry?.value || candidate.industry,
+      country: profile.country?.value || candidate.country,
       overview: dossier.summary,
       icpScore: score.combined,
       fitReason: `[Origin: LangGraph run] ${score.rationale}`,
@@ -83,6 +83,10 @@ export function createPersistAccount(deps: AgentDeps) {
         sourceEngine: "Crawler",
       })),
       runId: context.runId,
+      profile,
+      signals,
+      whyIcpFit: score.whyIcpFit || "",
+      whatToPitch: score.whatToPitch || "",
     });
 
     await deps.repo.insertSignals(

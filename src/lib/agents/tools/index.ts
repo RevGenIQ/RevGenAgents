@@ -9,6 +9,7 @@ import { verifyEmailAddress } from "../../adapters/verification";
 import type { AgentConfig } from "../config";
 import type { AgentTools, ToolOutcome } from "../deps";
 import type { ContactCandidate, UsageEntry } from "../types";
+import { fetchPublic, mxHosts } from "./fetchPage";
 import { llmJson } from "./llmJson";
 import { tavilyExtract, webSearch } from "./webSearch";
 
@@ -85,5 +86,15 @@ export function createLiveTools(config: AgentConfig): AgentTools {
       const usage = configured ? [entry("zerobounce", "email_verification", 1, costs.verifyUsd)] : [];
       return { ok: true, value: { status: result.status, reason: result.reason }, usage };
     },
+
+    // Public pages and free JSON feeds cost nothing; they are not metered.
+    async fetchPage(url) {
+      const result = await fetchPublic(url);
+      if (!result.ok) return { ok: false, error: { code: result.code, message: result.message }, usage: [] };
+      const { url: finalUrl, contentType, headers, body } = result.page;
+      return { ok: true, value: { url: finalUrl, contentType, headers, body }, usage: [] };
+    },
+
+    lookupMx: mxHosts,
   };
 }

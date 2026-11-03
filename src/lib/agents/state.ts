@@ -21,6 +21,7 @@ import type {
   UsageEntry,
   VerifiedContact,
 } from "./types";
+import type { CompanyProfile } from "./profile/types";
 
 function concat<T>(left: T[], right: T[]): T[] {
   return [...left, ...right];
@@ -60,6 +61,8 @@ export const ProspectingState = Annotation.Root({
   }),
   decisions: Annotation<ReviewDecision[]>({ reducer: (_l, r) => r, default: () => [] }),
   publishedIds: Annotation<string[]>({ reducer: (_l, r) => r, default: () => [] }),
+  /** "auto" (free sample runs) publishes straight to the client; "humagent" pauses for review. */
+  reviewMode: Annotation<"humagent" | "auto">({ reducer: (_l, r) => r, default: () => "humagent" }),
   stopped: Annotation<boolean>({ reducer: (_l, r) => r, default: () => false }),
   stopReason: Annotation<string>({ reducer: (_l, r) => r, default: () => "" }),
   errors: Annotation<string[]>({ reducer: concat, default: () => [] }),
@@ -86,6 +89,7 @@ export const AccountState = Annotation.Root({
   context: Annotation<AccountTaskContext>,
   candidate: Annotation<CandidateCompany>,
   signals: Annotation<EvidenceSignal[]>({ reducer: (_l, r) => r, default: () => [] }),
+  profile: Annotation<CompanyProfile>({ reducer: (_l, r) => r, default: () => ({}) }),
   score: Annotation<FitScore | null>({ reducer: (_l, r) => r, default: () => null }),
   contacts: Annotation<ContactCandidate[]>({ reducer: (_l, r) => r, default: () => [] }),
   verified: Annotation<VerifiedContact[]>({ reducer: (_l, r) => r, default: () => [] }),

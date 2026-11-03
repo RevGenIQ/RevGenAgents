@@ -53,6 +53,11 @@ export function createAggregate(deps: AgentDeps) {
 export function createHumagentReview(deps: AgentDeps) {
   return async function humagentReview(state: ProspectingStateType): Promise<ProspectingUpdate> {
     const cards = reviewCards(state);
+    if (state.reviewMode === "auto") {
+      // Free sample runs go straight to the client; the Humagent enriches them later on request.
+      await reportProgress(deps, state.runId, `Publishing ${cards.length} sample accounts...`, 90);
+      return { decisions: cards.map((c) => ({ companyId: c.companyId, action: "approve" as const })) };
+    }
     // This node re-runs from the top on resume, so everything before interrupt() is idempotent.
     await reportProgress(deps, state.runId, `${AWAITING_REVIEW_PREFIX} of ${cards.length} account cards...`, 90);
 

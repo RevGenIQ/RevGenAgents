@@ -51,6 +51,10 @@ export interface FitScore {
   intentScore: number;
   combined: number;
   rationale: string;
+  /** Rules-first breakdown (ICP 30, signals 30, completeness 20, timing 20) before the model's adjustment. */
+  breakdown?: { icpMatch: number; signals: number; completeness: number; timing: number; adjustment: number };
+  whyIcpFit?: string;
+  whatToPitch?: string;
 }
 
 export interface ContactCandidate {

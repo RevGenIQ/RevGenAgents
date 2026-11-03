@@ -7,8 +7,10 @@
 import type * as z from "zod";
 import type { EmailStatus } from "../supabase/types";
 import type { AgentConfig } from "./config";
+import type { CompanyProfile } from "./profile/types";
 import type {
   ContactCandidate,
+  EvidenceSignal,
   SourceSnippet,
   UsageEntry,
 } from "./types";
@@ -31,6 +33,7 @@ export type LlmTask =
   | "planQueries"
   | "discoverCompanies"
   | "extractSignals"
+  | "profileCompany"
   | "scoreFit"
   | "writeDossier";
 
@@ -60,6 +63,17 @@ export interface AgentTools {
     titles: string[]
   ): Promise<ToolOutcome<ContactCandidate | null>>;
   verifyEmail(email: string): Promise<ToolOutcome<EmailCheck>>;
+  /** Public page or JSON fetch (SSRF-checked, size and time limited). */
+  fetchPage(url: string): Promise<ToolOutcome<FetchedDocument>>;
+  /** MX exchange hosts for a domain (empty when none). */
+  lookupMx(domain: string): Promise<string[]>;
+}
+
+export interface FetchedDocument {
+  url: string;
+  contentType: string;
+  headers: Record<string, string>;
+  body: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -94,7 +108,7 @@ export interface RunPatch {
   error_message?: string | null;
 }
 
-export type TaskType = "Scout" | "Analyst" | "Matcher" | "Verifier" | "Writer" | "Reviewer";
+export type TaskType = "Scout" | "Analyst" | "Profiler" | "Matcher" | "Verifier" | "Writer" | "Reviewer";
 export type TaskStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
 
 export interface TaskInput {
@@ -124,6 +138,17 @@ export interface CompanyUpsert {
   opener: string;
   contactsJson: Record<string, unknown>[];
   evidenceJson: Record<string, unknown>[];
+  runId: string;
+  profile: CompanyProfile;
+  signals: EvidenceSignal[];
+  whyIcpFit: string;
+  whatToPitch: string;
+}
+
+export interface CompanyDraft {
+  workspaceId: string;
+  domain: string;
+  name: string;
   runId: string;
 }
 
@@ -211,6 +236,10 @@ export interface AgentRepo {
   completeTask(taskId: string, status: TaskStatus, output: Record<string, unknown>): Promise<void>;
   /** Idempotent on (workspace_id, canonical_domain). Returns the company id. */
   upsertCompany(row: CompanyUpsert): Promise<string>;
+  /** Shows a company in the live grid while it is researched; never changes an existing row's stage. */
+  markResearching(row: CompanyDraft): Promise<void>;
+  /** Marks a draft that did not meet the bar, so the grid can show why. */
+  markDiscarded(workspaceId: string, domain: string, reason: string): Promise<void>;
   /** Idempotent on (workspace_id, work_email). Returns the contact id. */
   upsertContact(row: ContactUpsert): Promise<string>;
   /** Inserts only signals whose (company_id, evidence_url) is new. Returns how many were inserted. */
